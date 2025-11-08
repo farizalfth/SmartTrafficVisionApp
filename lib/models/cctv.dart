@@ -6,6 +6,8 @@ class CCTV {
   final String rstpUrl; // Real-Time Streaming Protocol URL
   final String status; // e.g., 'Online', 'Offline'
   final String? description;
+  final double latitude; // Tambahkan ini
+  final double longitude; // Tambahkan ini
 
   CCTV({
     required this.id,
@@ -14,9 +16,10 @@ class CCTV {
     required this.rstpUrl,
     required this.status,
     this.description,
+    required this.latitude, // Tambahkan ini
+    required this.longitude, // Tambahkan ini
   });
 
-  // Metode untuk mengonversi dari JSON (jika data diambil dari API)
   factory CCTV.fromJson(Map<String, dynamic> json) {
     return CCTV(
       id: json['id'],
@@ -25,10 +28,11 @@ class CCTV {
       rstpUrl: json['rstpUrl'],
       status: json['status'],
       description: json['description'],
+      latitude: json['latitude'].toDouble(), // Pastikan double
+      longitude: json['longitude'].toDouble(), // Pastikan double
     );
   }
 
-  // Metode untuk mengonversi ke JSON (jika akan dikirim ke API)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -37,6 +41,8 @@ class CCTV {
       'rstpUrl': rstpUrl,
       'status': status,
       'description': description,
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 }

@@ -12,6 +12,7 @@ analyzer:
     deprecated_member_use: ignore
     avoid_print: ignore
     unused_import: ignore
+    unused_field: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:

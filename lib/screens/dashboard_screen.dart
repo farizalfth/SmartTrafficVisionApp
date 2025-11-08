@@ -1,9 +1,82 @@
 import 'package:flutter/material.dart';
-import 'package:smarttrafficapp/widgets/summary_card.dart'; // Import SummaryCard
-import 'package:smarttrafficapp/widgets/cctv_feed_thumbnail.dart'; // Import CCTVCFeedThumbnail
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:smarttrafficapp/widgets/summary_card.dart';
+import 'package:smarttrafficapp/widgets/cctv_feed_thumbnail.dart';
+import 'package:smarttrafficapp/services/api_service.dart';
+import 'package:smarttrafficapp/models/cctv.dart';
+import 'package:smarttrafficapp/screens/live_cctv_screen.dart'; // Import LiveCCTVScreen
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final ApiService _apiService = ApiService();
+  List<CCTV> _cctvList = [];
+  bool _isLoadingCCTVs = true;
+  Set<Marker> _markers = {};
+
+  static const CameraPosition _initialCameraPosition = CameraPosition(
+    target: LatLng(-6.200000, 106.816666), // Jakarta, Indonesia
+    zoom: 12,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCCTVsAndSetupMap();
+  }
+
+  Future<void> _fetchCCTVsAndSetupMap() async {
+    try {
+      final cctvs = await _apiService.getCCTVs();
+      if (mounted) { // Tambahkan pengecekan mounted
+        setState(() {
+          _cctvList = cctvs;
+          _isLoadingCCTVs = false;
+          _markers = cctvs.map((cctv) {
+            return Marker(
+              markerId: MarkerId(cctv.id),
+              position: LatLng(cctv.latitude, cctv.longitude),
+              infoWindow: InfoWindow(
+                title: cctv.name,
+                snippet: cctv.location,
+                onTap: () {
+                  // Aksi saat marker ditekan: navigasi ke LiveCCTVScreen
+                  if (mounted) { // Tambahkan pengecekan mounted
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LiveCCTVScreen(
+                          initialCCTVId: cctv.id,
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              icon: cctv.status == 'Online'
+                  ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)
+                  : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            );
+          }).toSet();
+        });
+      }
+    } catch (e) {
+      print('Error fetching CCTV list: $e');
+      if (mounted) { // Tambahkan pengecekan mounted
+        setState(() {
+          _isLoadingCCTVs = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +89,7 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(height: 20),
           _buildMapPlaceholder(context),
           const SizedBox(height: 20),
-          _buildLiveFeedPlaceholder(context), // Pass context here
+          _buildLiveFeedPlaceholder(context),
           const SizedBox(height: 20),
           _buildChartPlaceholder(context),
           const SizedBox(height: 20),
@@ -26,7 +99,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCards(BuildContext context) { // Menerima context
+  Widget _buildSummaryCards(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
@@ -52,7 +125,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMapPlaceholder(BuildContext context) { // Menerima context
+  Widget _buildMapPlaceholder(BuildContext context) {
     return Card(
       color: Theme.of(context).cardColor,
       elevation: 4,
@@ -63,29 +136,40 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Text('Peta Lalu Lintas Interaktif', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),
-            Container(
-              height: 200,
-              width: double.infinity,
-              color: Colors.grey[800], // Placeholder for map
-              child: const Center(
-                child: Text('Map Placeholder', style: TextStyle(color: Colors.white54)),
-              ),
-            ),
+            _isLoadingCCTVs
+                ? Container(
+                    height: 200,
+                    width: double.infinity,
+                    color: Colors.grey[800],
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: GoogleMap(
+                      mapType: MapType.normal,
+                      initialCameraPosition: _initialCameraPosition,
+                      onMapCreated: (GoogleMapController controller) {
+                        // Anda bisa menyimpan controller untuk interaksi lebih lanjut
+                      },
+                      markers: _markers, // Tampilkan marker CCTV
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
+                    ),
+                  ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLiveFeedPlaceholder(BuildContext context) { // Menerima context
-    // Menggunakan CCTVCFeedThumbnail yang sudah dibuat di widgets
-    List<Map<String, String>> dummyCCTVs = [
-      {'id': '001', 'location': 'Jl. Sudirman - Bundaran HI'},
-      {'id': '002', 'location': 'Tol Jakarta - Cikampek KM 10'},
-      {'id': '003', 'location': 'Jl. Gatot Subroto'},
-      {'id': '004', 'location': 'Jl. Rasuna Said'},
-    ];
-
+  Widget _buildLiveFeedPlaceholder(BuildContext context) {
     return Card(
       color: Theme.of(context).cardColor,
       elevation: 4,
@@ -96,31 +180,42 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Text('Live Feed CCTV Utama', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 120,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: dummyCCTVs.length,
-                itemBuilder: (context, index) {
-                  return CCTVCFeedThumbnail(
-                    cctvId: dummyCCTVs[index]['id']!,
-                    location: dummyCCTVs[index]['location']!,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Tapped on CCTV ${dummyCCTVs[index]['id']}')),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+            _isLoadingCCTVs
+                ? const Center(child: CircularProgressIndicator())
+                : SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _cctvList.length,
+                      itemBuilder: (context, index) {
+                        final cctv = _cctvList[index];
+                        return CCTVCFeedThumbnail(
+                          cctvId: cctv.id,
+                          location: cctv.location,
+                          onTap: () {
+                            // Navigasi ke detail CCTV, bisa dengan parameter
+                            if (mounted) { // Tambahkan pengecekan mounted
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => LiveCCTVScreen(
+                                    initialCCTVId: cctv.id,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildChartPlaceholder(BuildContext context) { // Menerima context
+  Widget _buildChartPlaceholder(BuildContext context) {
     return Card(
       color: Theme.of(context).cardColor,
       elevation: 4,
@@ -133,7 +228,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Container(
               height: 150,
-              color: Colors.grey[800], // Placeholder for chart
+              color: Colors.grey[800],
               child: const Center(
                 child: Text('Chart Placeholder', style: TextStyle(color: Colors.white54)),
               ),
@@ -144,9 +239,9 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEarlyWarningPlaceholder(BuildContext context) { // Menerima context
+  Widget _buildEarlyWarningPlaceholder(BuildContext context) {
     return Card(
-      color: Colors.red[800], // Warna khusus untuk peringatan
+      color: Colors.red[800],
       elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
