@@ -17,71 +17,88 @@ abstract class BaseApiService {
 }
 
 class ApiService implements BaseApiService {
-  final String _baseUrl = 'http://your-backend-api.com/api'; // Ganti dengan URL API backend Anda
+  // Ganti dengan URL API backend Anda jika sudah ada, atau biarkan kosong untuk dummy
+  final String _baseUrl = 'http://your-backend-api.com/api'; 
 
   // --- Dummy Data (Untuk pengembangan awal tanpa backend) ---
   final List<CCTV> _dummyCCTVs = [
     CCTV(
-      id: 'CCTV001',
-      name: 'CCTV Bundaran HI',
-      location: 'Bundaran Hotel Indonesia, Jakarta',
-      rstpUrl: 'rtsp://dummy.url/cctv001', // URL dummy
+      id: 'CCTVSMG001',
+      name: 'CCTV Simpang Lima',
+      location: 'Simpang Lima, Semarang',
+      // Menggunakan RTSP stream test yang valid untuk CCTVSMG001
+      rstpUrl: 'rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4',
       status: 'Online',
-      latitude: -6.1944, // Koordinat dummy Jakarta
-      longitude: 106.8230,
+      latitude: -6.9918, // Koordinat Semarang
+      longitude: 110.4203,
     ),
     CCTV(
-      id: 'CCTV002',
-      name: 'CCTV Patung Kuda',
-      location: 'Patung Kuda Arjuna Wiwaha, Jakarta',
-      rstpUrl: 'rtsp://dummy.url/cctv002',
+      id: 'CCTVSMG002',
+      name: 'CCTV Tugu Muda',
+      location: 'Tugu Muda, Semarang',
+      rstpUrl: 'rtsp://dummy.url/cctvsmg002', // Ini masih dummy
       status: 'Online',
-      latitude: -6.1770,
-      longitude: 106.8260,
+      latitude: -6.9836,
+      longitude: 110.4079,
     ),
     CCTV(
-      id: 'CCTV003',
-      name: 'CCTV Semanggi',
-      location: 'Simpang Susun Semanggi, Jakarta',
-      rstpUrl: 'rtsp://dummy.url/cctv003',
+      id: 'CCTVSLO001',
+      name: 'CCTV Gladag',
+      location: 'Gladag, Surakarta (Solo)',
+      rstpUrl: 'rtsp://dummy.url/cctvslo001',
+      status: 'Offline', // Offline CCTV tidak akan memuat stream
+      latitude: -7.5684, // Koordinat Solo
+      longitude: 110.8290,
+    ),
+    CCTV(
+      id: 'CCTVSLO002',
+      name: 'CCTV Palur',
+      location: 'Palur, Karanganyar (dekat Solo)',
+      rstpUrl: 'rtsp://dummy.url/cctvslo002',
+      status: 'Online',
+      latitude: -7.5750,
+      longitude: 110.8870,
+    ),
+    CCTV(
+      id: 'CCTVTGL001',
+      name: 'CCTV Alun-alun Tegal',
+      location: 'Alun-alun Kota Tegal',
+      rstpUrl: 'rtsp://dummy.url/cctvtgl001',
+      status: 'Online',
+      latitude: -6.8687, // Koordinat Tegal
+      longitude: 109.1350,
+    ),
+    CCTV(
+      id: 'CCTVPKL001',
+      name: 'CCTV Alun-alun Pekalongan',
+      location: 'Alun-alun Kota Pekalongan',
+      rstpUrl: 'rtsp://dummy.url/cctvpkl001',
+      status: 'Online',
+      latitude: -6.8856, // Koordinat Pekalongan
+      longitude: 109.6740,
+    ),
+    CCTV(
+      id: 'CCTVKNDL001',
+      name: 'CCTV Alun-alun Kendal',
+      location: 'Alun-alun Kota Kendal',
+      rstpUrl: 'rtsp://dummy.url/cctvkndl001',
       status: 'Offline',
-      latitude: -6.2163,
-      longitude: 106.8140,
-    ),
-    CCTV(
-      id: 'CCTV004',
-      name: 'CCTV Kuningan',
-      location: 'Jl. Rasuna Said - Kuningan, Jakarta',
-      rstpUrl: 'rtsp://dummy.url/cctv004',
-      status: 'Online',
-      latitude: -6.2230,
-      longitude: 106.8280,
-    ),
-    CCTV(
-      id: 'CCTV005',
-      name: 'CCTV Monas',
-      location: 'Monumen Nasional, Jakarta',
-      rstpUrl: 'rtsp://dummy.url/cctv005',
-      status: 'Online',
-      latitude: -6.1754,
-      longitude: 106.8272,
+      latitude: -7.0004, // Koordinat Kendal
+      longitude: 110.2003,
     ),
   ];
 
   // --- Auth & User Management ---
-  @override // Menambahkan override karena mengimplementasikan BaseApiService
+  @override
   Future<User?> login(String username, String password) async {
-    // Implementasi login
-    // Ini adalah dummy, di dunia nyata akan panggil API
     if (username == 'admin@example.com' && password == 'password') {
       return User(id: '1', username: 'admin', email: 'admin@example.com', role: UserRole.admin);
     }
     return null;
   }
 
-  @override // Menambahkan override
+  @override
   Future<List<User>> getUsers() async {
-    // Implementasi getUsers
     return [
       User(id: '1', username: 'admin', email: 'admin@example.com', role: UserRole.admin),
       User(id: '2', username: 'operator', email: 'operator@example.com', role: UserRole.operator),
@@ -89,54 +106,37 @@ class ApiService implements BaseApiService {
   }
 
   // --- CCTV Management ---
-  @override // Menambahkan override
+  @override
   Future<List<CCTV>> getCCTVs() async {
-    // Untuk demo, kita langsung kembalikan dummy data
-    await Future.delayed(const Duration(seconds: 1)); // Simulasi delay jaringan
+    await Future.delayed(const Duration(seconds: 1));
     return _dummyCCTVs;
-
-    // Untuk integrasi API nyata, gunakan kode ini:
-    /*
-    final response = await http.get(Uri.parse('$_baseUrl/cctvs'));
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => CCTV.fromJson(json)).toList();
-    } else {
-      debugPrint('Failed to load CCTV data: ${response.body}');
-      throw Exception('Failed to load CCTV data');
-    }
-    */
   }
 
-  @override // Menambahkan override
+  @override
   Future<CCTV> addCCTV(CCTV newCCTV) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    _dummyCCTVs.add(newCCTV); // Tambahkan ke dummy list
+    _dummyCCTVs.add(newCCTV);
     return newCCTV;
-    // ... (kode API nyata) ...
   }
 
-  @override // Menambahkan override
+  @override
   Future<void> updateCCTV(String id, CCTV updatedCCTV) async {
     await Future.delayed(const Duration(milliseconds: 500));
     final index = _dummyCCTVs.indexWhere((c) => c.id == id);
     if (index != -1) {
-      _dummyCCTVs[index] = updatedCCTV; // Update di dummy list
+      _dummyCCTVs[index] = updatedCCTV;
     }
-    // ... (kode API nyata) ...
   }
 
-  @override // Menambahkan override
+  @override
   Future<void> deleteCCTV(String id) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    _dummyCCTVs.removeWhere((c) => c.id == id); // Hapus dari dummy list
-    // ... (kode API nyata) ...
+    _dummyCCTVs.removeWhere((c) => c.id == id);
   }
 
   // --- Traffic Data ---
-  @override // Menambahkan override
+  @override
   Future<List<TrafficData>> getTrafficData(String cctvId, {DateTime? startDate, DateTime? endDate}) async {
-    // Ini juga dummy data
     await Future.delayed(const Duration(seconds: 1));
     return [
       TrafficData(
@@ -156,6 +156,5 @@ class ApiService implements BaseApiService {
         vehicleTypeCounts: {'car': 120, 'motorcycle': 40, 'truck': 20},
       ),
     ];
-    // ... (kode API nyata) ...
   }
 }

@@ -12,7 +12,7 @@ class CCTVCFeedThumbnail extends StatelessWidget {
     required this.cctvId,
     required this.location,
     this.imageUrl,
-    this.onTap,
+    this.onTap, required String congestionLevel,
   });
 
   @override

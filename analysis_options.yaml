@@ -13,6 +13,7 @@ analyzer:
     avoid_print: ignore
     unused_import: ignore
     unused_field: ignore
+    unnecessary_import: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:

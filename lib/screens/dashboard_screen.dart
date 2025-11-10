@@ -19,9 +19,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoadingCCTVs = true;
   Set<Marker> _markers = {};
 
+  // Initial Camera Position untuk Jawa Tengah
   static const CameraPosition _initialCameraPosition = CameraPosition(
-    target: LatLng(-6.200000, 106.816666), // Jakarta, Indonesia
-    zoom: 12,
+    target: LatLng(-7.150975, 110.140259), // Pusat Jawa Tengah (kurang lebih)
+    zoom: 8, // Zoom level agar Jawa Tengah terlihat semua
   );
 
   @override
@@ -33,7 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _fetchCCTVsAndSetupMap() async {
     try {
       final cctvs = await _apiService.getCCTVs();
-      if (mounted) { // Tambahkan pengecekan mounted
+      if (mounted) {
         setState(() {
           _cctvList = cctvs;
           _isLoadingCCTVs = false;
@@ -46,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 snippet: cctv.location,
                 onTap: () {
                   // Aksi saat marker ditekan: navigasi ke LiveCCTVScreen
-                  if (mounted) { // Tambahkan pengecekan mounted
+                  if (mounted) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -67,7 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } catch (e) {
       print('Error fetching CCTV list: $e');
-      if (mounted) { // Tambahkan pengecekan mounted
+      if (mounted) {
         setState(() {
           _isLoadingCCTVs = false;
         });
@@ -87,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           _buildSummaryCards(context),
           const SizedBox(height: 20),
-          _buildMapPlaceholder(context),
+          _buildMapSection(context), // Menggunakan nama baru untuk membedakan dengan placeholder
           const SizedBox(height: 20),
           _buildLiveFeedPlaceholder(context),
           const SizedBox(height: 20),
@@ -125,7 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMapPlaceholder(BuildContext context) {
+  Widget _buildMapSection(BuildContext context) {
     return Card(
       color: Theme.of(context).cardColor,
       elevation: 4,
@@ -134,7 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Peta Lalu Lintas Interaktif', style: Theme.of(context).textTheme.titleMedium),
+            Text('Peta Lalu Lintas Interaktif Jawa Tengah', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),
             _isLoadingCCTVs
                 ? Container(
@@ -163,9 +164,80 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       zoomControlsEnabled: false,
                     ),
                   ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _showRoutePlanningDialog(context);
+                },
+                icon: const Icon(Icons.route),
+                label: const Text('Dapatkan Rute & Hindari Macet'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _showRoutePlanningDialog(BuildContext context) async {
+    TextEditingController destinationController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Rencanakan Rute'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: destinationController,
+                decoration: const InputDecoration(
+                  labelText: 'Lokasi Tujuan (misal: Semarang Tawang)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Fitur ini akan menghitung rute terbaik berdasarkan data kepadatan CCTV. '
+                'Integrasi dengan layanan peta eksternal dan analisis Machine Learning '
+                'di backend diperlukan untuk fungsionalitas penuh.',
+                style: TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (destinationController.text.isNotEmpty) {
+                  // Ini akan memanggil backend Anda (atau langsung API peta)
+                  // untuk mendapatkan rute dan data lalu lintas.
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Mencari rute ke: ${destinationController.text}...\n'
+                            'Memerlukan integrasi API Routing dan Data Lalu Lintas.'),
+                      ),
+                    );
+                    Navigator.of(context).pop();
+                  }
+                }
+              },
+              child: const Text('Cari Rute'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -192,9 +264,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return CCTVCFeedThumbnail(
                           cctvId: cctv.id,
                           location: cctv.location,
+                          // Contoh placeholder untuk tingkat kepadatan dari analisis ML
+                          congestionLevel: cctv.status == 'Online' ? 'Padat (60%)' : 'Offline',
                           onTap: () {
                             // Navigasi ke detail CCTV, bisa dengan parameter
-                            if (mounted) { // Tambahkan pengecekan mounted
+                            if (mounted) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -230,7 +304,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 150,
               color: Colors.grey[800],
               child: const Center(
-                child: Text('Chart Placeholder', style: TextStyle(color: Colors.white54)),
+                child: Text(
+                  'Chart Placeholder (Data dari Analisis ML)',
+                  style: TextStyle(color: Colors.white54),
+                ),
               ),
             ),
           ],
@@ -251,7 +328,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'PERINGATAN DINI: Kepadatan Ekstrem di Jl. Gatot Subroto. Gunakan jalur alternatif.',
+                'PERINGATAN DINI: Kepadatan Ekstrem di Jl. Gatot Subroto, Semarang. Gunakan jalur alternatif.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white),
               ),
             ),
