@@ -8,8 +8,8 @@ class CCTV {
   final String location;
   final double latitude;
   final double longitude;
-  final String status; // e.g., 'Online', 'Offline'
-  final String rstpUrl; // Real-Time Streaming Protocol URL
+  final String status; // e.g., 'Online', 'Offline', 'Macet'
+  final String rstpUrl; // Link YouTube / RTSP
   final String? lastUpdate;
   final String? thumbnailUrl;
   final String? description;
@@ -27,15 +27,17 @@ class CCTV {
     this.description,
   });
 
-  // --- Fitur dari HEAD: Helper untuk YouTube ID ---
+  // --- HELPER: YouTube ID ---
   String? get youtubeVideoId {
-    if (rstpUrl.startsWith('https://www.youtube.com/') || rstpUrl.startsWith('https://m.youtube.com/')) {
+    if (rstpUrl.isEmpty) return null;
+    try {
       return YoutubePlayer.convertUrlToId(rstpUrl);
+    } catch (e) {
+      return null;
     }
-    return null;
   }
 
-  // --- Fitur dari HEAD: CopyWith untuk update state ---
+  // --- STATE MANAGEMENT: CopyWith ---
   CCTV copyWith({
     String? id,
     String? name,
@@ -62,27 +64,33 @@ class CCTV {
     );
   }
 
-  // --- Fitur dari Remote: JSON Serialization untuk API ---
-  factory CCTV.fromJson(Map<String, dynamic> json) {
+  // --- FIREBASE / JSON SERIALIZATION ---
+
+  // Factory untuk membaca data dari Firebase (Map<dynamic, dynamic>)
+  factory CCTV.fromMap(Map<dynamic, dynamic> map) {
     return CCTV(
-      id: json['id'].toString(),
-      name: json['name'] ?? '',
-      location: json['location'] ?? '',
-      // Menangani kemungkinan latitude/longitude dikirim sebagai String atau Number
-      latitude: (json['latitude'] is String) 
-          ? double.tryParse(json['latitude']) ?? 0.0 
-          : (json['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (json['longitude'] is String) 
-          ? double.tryParse(json['longitude']) ?? 0.0 
-          : (json['longitude'] as num?)?.toDouble() ?? 0.0,
-      status: json['status'] ?? 'Offline',
-      rstpUrl: json['rstpUrl'] ?? '',
-      lastUpdate: json['last_update'] ?? json['lastUpdate'], // Cek snake_case atau camelCase
-      thumbnailUrl: json['thumbnail_url'] ?? json['thumbnailUrl'],
-      description: json['description'],
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'CCTV Tanpa Nama',
+      location: map['location']?.toString() ?? 'Lokasi Tidak Diketahui',
+      
+      // Helper aman untuk konversi angka (String/Int -> Double)
+      latitude: _parseDouble(map['latitude']),
+      longitude: _parseDouble(map['longitude']),
+      
+      status: map['status']?.toString() ?? 'Offline',
+      rstpUrl: map['rstpUrl']?.toString() ?? '',
+      
+      // Handle penamaan variable yang mungkin beda (snake_case vs camelCase)
+      lastUpdate: map['lastUpdate']?.toString() ?? map['last_update']?.toString(),
+      thumbnailUrl: map['thumbnailUrl']?.toString() ?? map['thumbnail_url']?.toString(),
+      description: map['description']?.toString(),
     );
   }
 
+  // Factory standard JSON (Redirect ke fromMap)
+  factory CCTV.fromJson(Map<String, dynamic> json) => CCTV.fromMap(json);
+
+  // Konversi ke JSON untuk dikirim ke Firebase
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -96,5 +104,14 @@ class CCTV {
       'thumbnailUrl': thumbnailUrl,
       'description': description,
     };
+  }
+
+  // --- INTERNAL HELPER: Parsing Angka Aman ---
+  // Menangani kasus jika Firebase mengirim angka sebagai String ("-6.2") atau Int (-6)
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
   }
 }

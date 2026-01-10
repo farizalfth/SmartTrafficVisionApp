@@ -48,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 20),
                     const Text(
-                      "SmartTrafficApp",
+                      "Smart Traffic App",
                       style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5),
                     ),
                     const SizedBox(height: 10),

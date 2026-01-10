@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'package:intl/intl.dart'; // Untuk format angka
+import 'package:firebase_database/firebase_database.dart'; // Import Firebase
 
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
 import 'package:smarttrafficapp/models/cctv.dart';
+import 'package:smarttrafficapp/services/traffic_service.dart'; // Import Service Traffic
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -16,16 +19,13 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
+  // Panggil Service Database
+  final TrafficService _trafficService = TrafficService();
+
   // State Filter
   String _selectedPeriod = 'Harian';
   DateTime _selectedDate = DateTime.now();
-  String? _selectedCCTVId; // Variable untuk menyimpan CCTV yang dipilih
-
-  // Data Dummy untuk Preview (Akan di-random saat CCTV berubah)
-  int _totalKendaraan = 0;
-  String _puncakKepadatan = "--:--";
-  int _pelanggaran = 0;
-  List<double> _chartValues = [0, 0, 0, 0, 0, 0];
+  String? _selectedCCTVId; 
 
   @override
   Widget build(BuildContext context) {
@@ -45,49 +45,89 @@ class _ReportScreenState extends State<ReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. KARTU FILTER (CCTV, Periode, Tanggal)
+            // 1. KARTU FILTER
             _buildFilterCard(context, cctvList),
 
             const SizedBox(height: 24),
 
-            // 2. LOGIKA TAMPILAN PREVIEW
+            // 2. LOGIKA TAMPILAN PREVIEW (REAL-TIME STREAM)
             if (_selectedCCTVId == null)
               _buildEmptyState()
             else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Preview Data $_selectedPeriod',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPreviewCard(context),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // TOMBOL GENERATE
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Laporan $_selectedPeriod untuk CCTV terpilih sedang diunduh...'),
-                            backgroundColor: Colors.blueAccent,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.download_rounded, color: Colors.white),
-                      label: const Text('Generate & Unduh Laporan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              StreamBuilder(
+                stream: _trafficService.trafficStream,
+                builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                  // --- LOGIKA PENGOLAHAN DATA REAL ---
+                  int realTotal = 0;
+                  int realPelanggaran = 0;
+                  String realPuncak = "08:00";
+                  List<double> chartData = [10, 30, 50, 40, 60, 20];
+
+                  if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                    try {
+                      final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                      // Cek apakah ada data untuk ID yang dipilih
+                      if (data.containsKey(_selectedCCTVId)) {
+                        final cctvData = data[_selectedCCTVId];
+                        int mobil = cctvData['mobil'] ?? 0;
+                        int motor = cctvData['motor'] ?? 0;
+                        
+                        // Total Kendaraan (ASLI DARI PYTHON)
+                        realTotal = mobil + motor; 
+                        
+                        // Simulasi Pelanggaran (10% dari total)
+                        realPelanggaran = (realTotal * 0.1).toInt();
+                        
+                        // Simulasi Chart berdasarkan total (agar grafik dinamis mengikuti data)
+                        final random = Random();
+                        chartData = List.generate(6, (_) => (realTotal * random.nextDouble()) + 10);
+                        
+                        // Tentukan Jam (Hanya visual)
+                        realPuncak = DateFormat('HH:mm').format(DateTime.now());
+                      }
+                    } catch (e) {
+                      print("Error parse report: $e");
+                    }
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Preview Data $_selectedPeriod',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
-                    ),
-                  ),
-                ],
+                      const SizedBox(height: 12),
+                      
+                      // Masukkan Data Real ke Widget Preview
+                      _buildPreviewCard(context, realTotal, realPuncak, realPelanggaran, chartData),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // TOMBOL GENERATE
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Sedang mengunduh laporan $_selectedPeriod (Total: $realTotal unit)...'),
+                                backgroundColor: Colors.blueAccent,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.download_rounded, color: Colors.white),
+                          label: const Text('Generate & Unduh Laporan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
 
             const SizedBox(height: 30),
@@ -123,7 +163,6 @@ class _ReportScreenState extends State<ReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // A. PILIH CCTV
           const Text('Pilih Sumber CCTV', style: TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 8),
           Container(
@@ -156,7 +195,6 @@ class _ReportScreenState extends State<ReportScreen> {
                         if (val != null) {
                           setState(() {
                             _selectedCCTVId = val;
-                            _generateRandomData(); // Update data preview saat CCTV ganti
                           });
                         }
                       },
@@ -179,7 +217,7 @@ class _ReportScreenState extends State<ReportScreen> {
           
           const SizedBox(height: 16),
 
-          // B. PILIH PERIODE
+          // PILIH PERIODE
           const Text('Pilih Periode Laporan', style: TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 8),
           Container(
@@ -196,7 +234,6 @@ class _ReportScreenState extends State<ReportScreen> {
                     onTap: () {
                       setState(() {
                         _selectedPeriod = period;
-                        _generateRandomData();
                       });
                     },
                     child: Container(
@@ -222,7 +259,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
           const SizedBox(height: 16),
 
-          // C. PILIH TANGGAL
+          // PILIH TANGGAL
           const Text('Pilih Tanggal', style: TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 8),
           InkWell(
@@ -250,7 +287,6 @@ class _ReportScreenState extends State<ReportScreen> {
               if (picked != null && picked != _selectedDate) {
                 setState(() {
                   _selectedDate = picked;
-                  _generateRandomData();
                 });
               }
             },
@@ -266,7 +302,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   const Icon(Icons.calendar_today, color: Colors.blueAccent, size: 20),
                   const SizedBox(width: 12),
                   Text(
-                    "${_selectedDate.day.toString().padLeft(2, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.year}",
+                    DateFormat('dd-MM-yyyy').format(_selectedDate),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   const Spacer(),
@@ -280,8 +316,8 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- WIDGET PREVIEW ---
-  Widget _buildPreviewCard(BuildContext context) {
+  // --- WIDGET PREVIEW (UPDATED WITH PARAMS) ---
+  Widget _buildPreviewCard(BuildContext context, int total, String puncak, int pelanggaran, List<double> chartData) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -296,16 +332,16 @@ class _ReportScreenState extends State<ReportScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem('Total Kendaraan', '$_totalKendaraan Unit'),
+                _buildStatItem('Total Kendaraan', '$total Unit'),
                 const SizedBox(height: 16),
-                _buildStatItem('Puncak Kepadatan', '$_puncakKepadatan WIB'),
+                _buildStatItem('Waktu Terakhir', '$puncak WIB'),
                 const SizedBox(height: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Pelanggaran', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const Text('Est. Pelanggaran', style: TextStyle(color: Colors.grey, fontSize: 11)),
                     const SizedBox(height: 4),
-                    Text('$_pelanggaran Kasus', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('$pelanggaran Kasus', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
                   ],
                 ),
               ],
@@ -315,7 +351,7 @@ class _ReportScreenState extends State<ReportScreen> {
           // Divider Vertical
           Container(width: 1, height: 100, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 16)),
 
-          // Grafik Mini Kanan
+          // Grafik Mini Kanan (Dinamis dari Data)
           Expanded(
             flex: 3,
             child: SizedBox(
@@ -330,7 +366,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (val, meta) {
-                          const titles = ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
+                          const titles = ['06', '09', '12', '15', '18', '21'];
                           if (val.toInt() >= 0 && val.toInt() < titles.length) {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8.0),
@@ -344,7 +380,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   ),
                   borderData: FlBorderData(show: false),
                   gridData: const FlGridData(show: false),
-                  barGroups: _chartValues.asMap().entries.map((e) {
+                  barGroups: chartData.asMap().entries.map((e) {
                     return BarChartGroupData(
                       x: e.key,
                       barRods: [
@@ -353,7 +389,7 @@ class _ReportScreenState extends State<ReportScreen> {
                           color: Colors.blueAccent,
                           width: 8,
                           borderRadius: BorderRadius.circular(4),
-                          backDrawRodData: BackgroundBarChartRodData(show: true, toY: 100, color: Colors.white10),
+                          backDrawRodData: BackgroundBarChartRodData(show: true, toY: chartData.reduce(max) * 1.2, color: Colors.white10),
                         ),
                       ],
                     );
@@ -378,7 +414,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- EMPTY STATE (PERBAIKAN: ICON & CONST) ---
+  // --- EMPTY STATE ---
   Widget _buildEmptyState() {
     return Center(
       child: Container(
@@ -389,10 +425,8 @@ class _ReportScreenState extends State<ReportScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white24),
         ),
-        // Hapus 'const' di sini jika menyebabkan error, tapi dengan Icons.search aman.
         child: const Column(
           children: [
-            // PERBAIKAN: Menggunakan icon standar yang pasti ada
             Icon(Icons.search, size: 48, color: Colors.grey),
             SizedBox(height: 10),
             Text(
@@ -444,21 +478,5 @@ class _ReportScreenState extends State<ReportScreen> {
         ],
       ),
     );
-  }
-
-  // --- LOGIKA DATA DUMMY ---
-  void _generateRandomData() {
-    final random = Random();
-    setState(() {
-      _totalKendaraan = 1500 + random.nextInt(3000); // 1500 - 4500
-      _pelanggaran = 5 + random.nextInt(50); // 5 - 55
-      
-      // Random Jam Puncak
-      int hour = 7 + random.nextInt(12); // 07:00 - 19:00
-      _puncakKepadatan = "${hour.toString().padLeft(2, '0')}:00";
-
-      // Random Chart Data (0 - 100 range)
-      _chartValues = List.generate(6, (_) => 20.0 + random.nextInt(80));
-    });
   }
 }

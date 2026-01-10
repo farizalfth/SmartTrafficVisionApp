@@ -16,6 +16,7 @@ analyzer:
     unnecessary_import: ignore
     depend_on_referenced_packages: ignore
     use_build_context_synchronously: ignore
+    unnecessary_to_list_in_spreads: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:

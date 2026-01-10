@@ -8,6 +8,7 @@ import 'package:smarttrafficapp/firebase_options.dart';
 
 // --- IMPORT SERVICES & DATA ---
 import 'package:smarttrafficapp/services/auth_service.dart';
+import 'package:smarttrafficapp/services/traffic_service.dart';
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
 
 // --- IMPORT SCREENS ---
@@ -23,7 +24,6 @@ import 'package:smarttrafficapp/screens/user_management_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- INISIALISASI FIREBASE (WAJIB UNTUK GOOGLE LOGIN) ---
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -31,10 +31,11 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        // Provider untuk Autentikasi User
         ChangeNotifierProvider(create: (context) => AuthService()),
-        // Provider untuk Data CCTV (CRUD & Live View)
         ChangeNotifierProvider(create: (context) => CCTVDataSource()),
+        // TAMBAHAN (Opsional tapi Recommended):
+        // Provider(create: (context) => TrafficService()), 
+        // Kalau TrafficService bukan ChangeNotifier, pakai Provider biasa.
       ],
       child: const MyApp(),
     ),

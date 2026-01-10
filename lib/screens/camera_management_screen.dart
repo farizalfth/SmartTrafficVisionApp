@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smarttrafficapp/models/cctv.dart';
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class CameraManagementScreen extends StatefulWidget {
   const CameraManagementScreen({super.key});
@@ -15,7 +16,7 @@ class CameraManagementScreen extends StatefulWidget {
 class _CameraManagementScreenState extends State<CameraManagementScreen> {
   String _searchQuery = ''; 
 
-  // Filter List
+  // Filter List CCTV Berdasarkan Pencarian
   List<CCTV> _getFilteredCCTVList(List<CCTV> cctvList) {
     if (_searchQuery.isEmpty) {
       return cctvList;
@@ -27,7 +28,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
     }).toList();
   }
 
-  // Dialog Tambah/Edit
+  // --- DIALOG TAMBAH / EDIT ---
   Future<void> _addOrEditCCTV({CCTV? cctvToEdit}) async {
     final result = await showDialog<CCTV>(
       context: context,
@@ -41,14 +42,15 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
         cctvDataSource.addCCTV(result);
         _showSnackBar('Kamera "${result.name}" berhasil ditambahkan!', Colors.green);
       } else {
+        // Pertahankan ID lama jika edit
         final updatedCCTV = result.copyWith(id: cctvToEdit.id); 
-        cctvDataSource.updateCCTV(updatedCCTV);
+        cctvDataSource.updateCCTV(cctvToEdit.id, updatedCCTV); // Pastikan kirim ID dan Object
         _showSnackBar('Kamera "${result.name}" berhasil diperbarui!', Colors.blue);
       }
     }
   }
 
-  // Dialog Hapus
+  // --- DIALOG HAPUS ---
   Future<void> _deleteCCTV(String cctvId, String cctvName) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -94,6 +96,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
         elevation: 0,
         centerTitle: true,
       ),
+      // Gunakan Consumer agar UI otomatis update jika data firebase berubah
       body: Consumer<CCTVDataSource>(
         builder: (context, cctvDataSource, child) {
           final List<CCTV> cctvList = cctvDataSource.cctvList;
@@ -101,7 +104,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
 
           return Column(
             children: [
-              // SEARCH BAR (Desain Dipercantik)
+              // SEARCH BAR
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: TextField(
@@ -139,7 +142,6 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                         ),
                       )
                     : ListView.builder(
-                        // PENTING: Padding bawah ditambah agar item terakhir tidak ketutup tombol
                         padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 100),
                         itemCount: filteredList.length,
                         itemBuilder: (context, index) {
@@ -151,9 +153,10 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
           );
         },
       ),
-      // TOMBOL TAMBAH (Floating)
+      
+      // TOMBOL TAMBAH
       floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 10), // Sedikit naik dari bawah layar
+        margin: const EdgeInsets.only(bottom: 10),
         child: FloatingActionButton.extended(
           onPressed: () => _addOrEditCCTV(),
           label: const Text(
@@ -166,14 +169,24 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
           elevation: 4,
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat, // Posisi Tengah Bawah
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
+  // WIDGET KARTU CCTV
   Widget _buildCCTVCard(BuildContext context, CCTV cctv) {
-    // Tentukan warna status
-    final bool isOnline = cctv.status == 'Online' || cctv.status == 'Aktif';
-    final Color statusColor = isOnline ? Colors.green : Colors.red;
+    // Normalisasi Status agar konsisten
+    final bool isOnline = cctv.status.toLowerCase() == 'online' || cctv.status.toLowerCase() == 'aktif';
+    final bool isMacet = cctv.status.toLowerCase() == 'macet';
+    
+    // Warna Status (Hijau = Online, Merah = Offline/Macet)
+    Color statusColor = isOnline ? Colors.green : Colors.red;
+    if(isMacet) statusColor = Colors.orange;
+
+    String? videoId = YoutubePlayer.convertUrlToId(cctv.rstpUrl);
+    String thumbnailUrl = videoId != null 
+        ? 'https://img.youtube.com/vi/$videoId/mqdefault.jpg' 
+        : 'https://via.placeholder.com/150';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -182,28 +195,33 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
       color: Theme.of(context).cardColor, 
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _addOrEditCCTV(cctvToEdit: cctv), // Edit saat tap card (opsional)
+        onTap: () => _addOrEditCCTV(cctvToEdit: cctv),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // THUMBNAIL (Kotak Gelap + Play Merah)
+              // THUMBNAIL DINAMIS
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 90,
                   height: 70,
                   color: Colors.black26, 
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Colors.redAccent,
-                        shape: BoxShape.circle,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Image.network(
+                        thumbnailUrl,
+                        width: 90, height: 70, fit: BoxFit.cover,
+                        errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey),
                       ),
-                      child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
+                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -245,7 +263,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                         border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
                       ),
                       child: Text(
-                        isOnline ? "ONLINE" : "OFFLINE",
+                        cctv.status.toUpperCase(), // Tampilkan status asli (Online/Macet/Offline)
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -258,7 +276,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                 ),
               ),
 
-              // ACTIONS (Edit & Delete)
+              // ACTIONS
               Column(
                 children: [
                   IconButton(
@@ -281,7 +299,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
   }
 }
 
-// --- FORM DIALOG (RAPID & BERSIH) ---
+// --- FORM DIALOG ---
 class CCTVFormDialog extends StatefulWidget {
   final CCTV? cctv;
   const CCTVFormDialog({super.key, this.cctv});
@@ -309,10 +327,12 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
     _latController = TextEditingController(text: widget.cctv?.latitude.toString() ?? '');
     _lonController = TextEditingController(text: widget.cctv?.longitude.toString() ?? '');
     
-    // Normalisasi status (jika data lama 'Aktif', ubah jadi 'Online' untuk dropdown)
+    // Normalisasi status
     String statusRaw = widget.cctv?.status ?? 'Online';
-    if (statusRaw == 'Aktif') statusRaw = 'Online';
-    if (statusRaw == 'Tidak Aktif') statusRaw = 'Offline';
+    // Pastikan status ada di list dropdown
+    if (!['Online', 'Offline', 'Macet'].contains(statusRaw)) {
+        statusRaw = 'Online';
+    }
     _selectedStatus = statusRaw;
   }
 
@@ -328,18 +348,17 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Style Input
     final inputDecoration = InputDecoration(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       filled: true,
-      fillColor: const Color(0xFF2C2C2C), // Warna input lebih gelap dari dialog
+      fillColor: const Color(0xFF2C2C2C),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       hintStyle: TextStyle(color: Colors.grey[600]),
       labelStyle: const TextStyle(color: Colors.white70),
     );
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E), // Background Dialog Gelap
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
@@ -382,7 +401,7 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
                   dropdownColor: const Color(0xFF2C2C2C),
                   style: const TextStyle(color: Colors.white),
                   decoration: inputDecoration.copyWith(labelText: 'Status', prefixIcon: const Icon(Icons.info_outline, color: Colors.grey)),
-                  items: ['Online', 'Offline'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                  items: ['Online', 'Offline', 'Macet'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (v) => setState(() => _selectedStatus = v!),
                 ),
                 const SizedBox(height: 12),
@@ -435,7 +454,8 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
   void _saveForm() {
     if (_formKey.currentState!.validate()) {
       final newCCTV = CCTV(
-        id: widget.cctv?.id ?? DateTime.now().millisecondsSinceEpoch.toString(), 
+        // ID: Jika edit pakai ID lama, jika baru generate pakai Timestamp agar unik
+        id: widget.cctv?.id ?? 'cctv_${DateTime.now().millisecondsSinceEpoch}', 
         name: _nameController.text,
         location: _locationController.text,
         rstpUrl: _rstpUrlController.text,
@@ -443,6 +463,7 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
         latitude: double.tryParse(_latController.text) ?? 0.0,
         longitude: double.tryParse(_lonController.text) ?? 0.0,
         lastUpdate: DateTime.now().toIso8601String(),
+        // Thumbnail URL akan otomatis dihandle di UI berdasarkan Link Youtube
       );
 
       Navigator.pop(context, newCCTV);

@@ -1,4 +1,4 @@
-enum UserRole { admin, operator, analyst, guest }
+enum UserRole { admin, operator, analyst, guest, user }
 
 class User {
   final String id;
@@ -10,7 +10,7 @@ class User {
     required this.id,
     required this.username,
     required this.email,
-    required this.role,
+    required this.role, required String profilePictureUrl,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -18,7 +18,7 @@ class User {
       id: json['id'],
       username: json['username'],
       email: json['email'],
-      role: UserRole.values.firstWhere((e) => e.toString().split('.').last == json['role']),
+      role: UserRole.values.firstWhere((e) => e.toString().split('.').last == json['role']), profilePictureUrl: '',
     );
   }
 
