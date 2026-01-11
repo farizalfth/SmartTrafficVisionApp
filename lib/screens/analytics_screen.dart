@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart'; // WAJIB: Tambahkan intl di pubspec.yaml jika belum
 import 'dart:math';
 
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
@@ -18,25 +19,17 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  // --- KONEKSI FIREBASE ---
   static const String _dbUrl = 'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app/';
   late final DatabaseReference _trafficRef;
 
-  // State UI
   String _selectedPeriod = 'Harian'; 
   String? _selectedCCTVId; 
   
-  // Data Chart
-  List<double> _barValues = [0, 0, 0, 0, 0, 0];
-  List<String> _barLabels = ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
+  List<double> _barValues = [];
+  List<String> _barLabels = [];
   
-  // Data Pie Chart (Mobil, Motor, Bus/Truk)
   List<double> _pieValues = [0, 0, 0]; 
-
-  // Data Peringkat
   List<Map<String, dynamic>> _rankingList = [];
-
-  // Cache Data Mentah
   Map<dynamic, dynamic>? _rawFirebaseData;
 
   @override
@@ -45,153 +38,163 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final firebaseApp = Firebase.app();
     final rtdb = FirebaseDatabase.instanceFor(app: firebaseApp, databaseURL: _dbUrl);
     _trafficRef = rtdb.ref('traffic_stats');
-
     _listenToFirebase();
   }
 
-  // --- 1. DENGARKAN DATA FIREBASE ---
   void _listenToFirebase() {
     _trafficRef.onValue.listen((event) {
       if (mounted && event.snapshot.value != null) {
         setState(() {
-          // Simpan data mentah
           _rawFirebaseData = event.snapshot.value as Map<dynamic, dynamic>;
-          // Hitung ulang tampilan
-          _recalculateData();
+          _recalculateData(); 
         });
       }
     });
   }
 
-  // --- 2. HITUNG ULANG DATA (GLOBAL / SPESIFIK) ---
+  // --- LOGIKA UTAMA ---
   void _recalculateData() {
     if (_rawFirebaseData == null) return;
 
     int sumMobil = 0;
     int sumMotor = 0;
     int sumBusTruk = 0;
-    int sumTotal = 0;
+    int sumTotalAkumulasi = 0;
+
+    // Peta untuk menyimpan data Harian (Tanggal -> Total)
+    Map<String, int> dailyHistoryMap = {}; 
 
     List<Map<String, dynamic>> tempList = [];
     final cctvProvider = Provider.of<CCTVDataSource>(context, listen: false);
 
     _rawFirebaseData!.forEach((key, value) {
       String id = key.toString();
+      if (_selectedCCTVId != null && id != _selectedCCTVId) return;
 
-      // Filter: Jika mode spesifik aktif, skip ID lain
-      if (_selectedCCTVId != null && id != _selectedCCTVId) {
-        return; 
+      // 1. Ambil Data Realtime/Akumulasi (Untuk Pie Chart & Ranking)
+      int currentTotal = 0;
+      if (value is Map) {
+        if (value.containsKey('live') && value['live'] is Map) {
+          final live = value['live'];
+          currentTotal = int.tryParse(live['total_akumulasi']?.toString() ?? '0') ?? 
+                         int.tryParse(live['total']?.toString() ?? '0') ?? 0;
+
+          if (live.containsKey('detail')) {
+            final detail = live['detail'];
+            sumMobil += int.tryParse(detail['mobil']?.toString() ?? '0') ?? 0;
+            sumMotor += int.tryParse(detail['motor']?.toString() ?? '0') ?? 0;
+            sumBusTruk += (int.tryParse(detail['bus']?.toString() ?? '0') ?? 0) + 
+                          (int.tryParse(detail['truk']?.toString() ?? '0') ?? 0);
+          }
+        }
+        
+        // 2. AMBIL DATA HISTORY (Untuk Grafik Mingguan/Bulanan)
+        // Struktur: ID -> daily_reports -> "2026-01-10": {...}
+        if (value.containsKey('daily_reports') && value['daily_reports'] is Map) {
+          final reports = value['daily_reports'] as Map;
+          reports.forEach((dateKey, dateValue) {
+            int dailyTotal = 0;
+            if (dateValue is Map) {
+              dailyTotal = int.tryParse(dateValue['total']?.toString() ?? '0') ?? 0;
+            } else {
+              dailyTotal = int.tryParse(dateValue.toString()) ?? 0;
+            }
+
+            // Gabungkan jika mode Global (banyak CCTV), atau set jika Spesifik
+            if (dailyHistoryMap.containsKey(dateKey)) {
+              dailyHistoryMap[dateKey] = dailyHistoryMap[dateKey]! + dailyTotal;
+            } else {
+              dailyHistoryMap[dateKey] = dailyTotal;
+            }
+          });
+        }
       }
-
-      // Parse Data per CCTV
-      final stats = _extractStats(value);
       
-      // Jika mode Global, kita jumlahkan semua
-      // Jika mode Spesifik, loop ini cuma jalan sekali untuk ID yg dipilih
-      sumMobil += stats['mobil']!;
-      sumMotor += stats['motor']!;
-      sumBusTruk += stats['bus_truk']!;
-      sumTotal += stats['total']!;
+      sumTotalAkumulasi += currentTotal;
 
-      // Siapkan Data Peringkat (Hanya untuk mode Global atau menampilkan detail)
+      // Ranking Data
       String name = "CCTV $id";
       try {
-        final cctv = cctvProvider.cctvList.firstWhere((c) => c.id == id);
+        final cctv = cctvProvider.cctvList.firstWhere((c) => c.id == id || c.id.endsWith(id));
         name = cctv.name;
-      } catch (e) {
-        // ignore name error
-      }
+      } catch (e) { /* ignore */ }
 
-      // Masukkan ke list peringkat hanya jika datanya valid (>0) atau mode global
       if (_selectedCCTVId == null) {
-         tempList.add({'id': id, 'name': name, 'total': stats['total']});
+         tempList.add({'id': id, 'name': name, 'total': currentTotal});
       }
     });
 
-    // Update Chart Values
-    double totalPie = (sumMobil + sumMotor + sumBusTruk).toDouble();
-    if (totalPie == 0) totalPie = 1;
+    // --- UPDATE UI ---
+    setState(() {
+      // 1. Pie Chart
+      double totalPie = (sumMobil + sumMotor + sumBusTruk).toDouble();
+      if (totalPie == 0 && sumTotalAkumulasi > 0) totalPie = sumTotalAkumulasi.toDouble(); // Fallback
+      if (totalPie == 0) totalPie = 1;
 
-    _pieValues = [
-      (sumMobil / totalPie) * 100,
-      (sumMotor / totalPie) * 100,
-      (sumBusTruk / totalPie) * 100,
-    ];
+      _pieValues = [
+        (sumMobil / totalPie) * 100,
+        (sumMotor / totalPie) * 100,
+        (sumBusTruk / totalPie) * 100,
+      ];
 
-    // Update Ranking (Hanya update jika mode global, biar listnya kelihatan)
-    if (_selectedCCTVId == null) {
-      tempList.sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
-      _rankingList = tempList.take(5).toList();
-    } else {
-      // Jika mode spesifik, ranking list dikosongkan atau tampilkan diri sendiri
-      _rankingList = []; 
-    }
-
-    // Update Bar Chart (Simulasi Tren)
-    _updateBarChartBasedOnTotal(sumTotal);
-  }
-
-  // --- 3. PARSING DATA PINTAR (Langsung / Nested Live) ---
-  Map<String, int> _extractStats(dynamic value) {
-    int mobil = 0;
-    int motor = 0;
-    int bus = 0;
-    int truk = 0;
-    int total = 0;
-
-    if (value is Map) {
-      Map<dynamic, dynamic>? targetData;
-
-      // Cek apakah ada di folder 'live' (Prioritas 1 - ID 4)
-      if (value.containsKey('live') && value['live'] is Map) {
-        final live = value['live'];
-        total = int.tryParse(live['total']?.toString() ?? '0') ?? 0;
-        
-        if (live.containsKey('detail')) {
-          targetData = live['detail'];
-        }
-      } 
-      // Cek apakah langsung di root (Prioritas 2 - ID 3)
-      else {
-        total = int.tryParse(value['total']?.toString() ?? '0') ?? 0;
-        if (value.containsKey('detail')) {
-          targetData = value['detail'];
-        }
+      // 2. Ranking
+      if (_selectedCCTVId == null) {
+        tempList.sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
+        _rankingList = tempList.take(3).toList();
+      } else {
+        _rankingList = [];
       }
 
-      // Ambil detail mobil/motor jika ketemu
-      if (targetData != null) {
-        mobil = int.tryParse(targetData['mobil']?.toString() ?? '0') ?? 0;
-        motor = int.tryParse(targetData['motor']?.toString() ?? '0') ?? 0;
-        bus = int.tryParse(targetData['bus']?.toString() ?? '0') ?? 0;
-        truk = int.tryParse(targetData['truk']?.toString() ?? '0') ?? 0;
-      }
-    }
-
-    return {
-      'mobil': mobil,
-      'motor': motor,
-      'bus_truk': bus + truk,
-      'total': total
-    };
+      // 3. UPDATE GRAFIK (LOGIKA REAL HISTORY)
+      _generateChartData(sumTotalAkumulasi, dailyHistoryMap);
+    });
   }
 
-  // --- 4. UPDATE GRAFIK BATANG ---
-  void _updateBarChartBasedOnTotal(int total) {
-    // Trik Visual: Buat grafik terlihat bervariasi meskipun data cuma 1 angka (total)
-    // Gunakan 'total' sebagai puncak, dan jam lain sebagai persentase dari total
-    double base = total.toDouble();
-    if(base == 0) base = 0;
+  void _generateChartData(int currentTotal, Map<String, int> historyMap) {
+    DateTime now = DateTime.now();
+    DateFormat formatter = DateFormat('yyyy-MM-dd'); // Format Key Firebase
 
     if (_selectedPeriod == 'Harian') {
+      // Tampilkan Jam (Simulasi Pola dari Total Hari Ini)
+      // Karena firebase Anda belum simpan data per-jam
       _barLabels = ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
-      _barValues = [base * 0.2, base * 0.5, base * 0.8, base * 0.4, base * 1.0, base * 0.6]; 
-    } else if (_selectedPeriod == 'Mingguan') {
-      _barLabels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-      _barValues = [base * 0.8, base * 0.9, base * 0.7, base * 0.8, base * 1.0, base * 1.1, base * 0.5];
-    } else {
-      _barLabels = ['Mgg 1', 'Mgg 2', 'Mgg 3', 'Mgg 4'];
-      _barValues = [base * 3, base * 4, base * 3.5, base * 4.5];
+      double scale = currentTotal > 0 ? currentTotal.toDouble() : 10;
+      _barValues = [scale*0.1, scale*0.4, scale*0.8, scale*0.5, scale*0.9, scale*0.6];
+    } 
+    
+    // --- LOGIKA MINGGUAN (DATA REAL 7 HARI) ---
+    else if (_selectedPeriod == 'Mingguan') {
+      List<String> labels = [];
+      List<double> values = [];
+
+      // Loop 7 hari ke belakang (H-6 sampai Hari Ini)
+      for (int i = 6; i >= 0; i--) {
+        DateTime d = now.subtract(Duration(days: i));
+        String dateKey = formatter.format(d); // "2026-01-11"
+        
+        // Label Sumbu X (Sen, Sel, Rab...)
+        labels.add(DateFormat('E', 'id_ID').format(d)); 
+
+        // Ambil Data dari Map History
+        // Jika hari ini, ambil nilai akumulasi terbaru (lebih akurat)
+        if (i == 0) {
+           values.add(currentTotal.toDouble());
+        } else {
+           // Ambil dari historyMap, jika tidak ada = 0
+           values.add((historyMap[dateKey] ?? 0).toDouble());
+        }
+      }
+      _barLabels = labels;
+      _barValues = values;
+    } 
+    
+    // --- LOGIKA BULANAN ---
+    else {
+       // Simulasi Bulanan (Karena butuh data 30 hari)
+       // Menggunakan data minggu ini sebagai patokan
+       _barLabels = ['Mgg 1', 'Mgg 2', 'Mgg 3', 'Mgg 4'];
+       double val = currentTotal.toDouble();
+       _barValues = [val * 3, val * 3.5, val * 4, val * 4.2];
     }
   }
 
@@ -214,13 +217,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           children: [
             _buildFilterSection(allCCTV),
             const SizedBox(height: 24),
-
+            
+            // Grafik Tren
             _buildDensityChartCard(),
             const SizedBox(height: 24),
+
+            // Distribusi
             _buildVehicleDistributionCard(),
             const SizedBox(height: 24),
-            // Sembunyikan peringkat jika memilih CCTV spesifik
-            if(_selectedCCTVId == null) _buildRankingCard(),
+            
+            // Peringkat (Global Only)
+            if (_selectedCCTVId == null) _buildRankingCard(),
             
             const SizedBox(height: 20),
           ],
@@ -229,6 +236,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  // --- WIDGET HELPER SAMA SEPERTI SEBELUMNYA ---
+  
   Widget _buildFilterSection(List<CCTV> cctvList) {
     return Card(
       color: Theme.of(context).cardColor,
@@ -262,7 +271,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         onChanged: (val) {
                           setState(() {
                             _selectedCCTVId = val;
-                            _recalculateData(); // Trigger hitung ulang
+                            _recalculateData(); 
                           });
                         },
                       ),
@@ -292,12 +301,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   final isSelected = _selectedPeriod == period;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        setState(() {
+                      onTap: () => setState(() {
                           _selectedPeriod = period;
-                          _recalculateData();
-                        });
-                      },
+                          if(_rawFirebaseData != null) _recalculateData(); 
+                        }),
                       child: Container(
                         decoration: BoxDecoration(color: isSelected ? Colors.blueAccent : Colors.transparent, borderRadius: BorderRadius.circular(10)),
                         alignment: Alignment.center,
@@ -315,10 +322,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildDensityChartCard() {
-    // SKALA DINAMIS: Agar grafik tidak kosong jika angka kecil
-    double maxValue = _barValues.reduce(max);
-    // Jika max value kecil (misal 5), set batas chart jadi 10 biar kelihatan
-    // Jika max value besar (misal 50), set batas chart jadi 60
+    double maxValue = _barValues.isEmpty ? 10 : _barValues.reduce(max);
     double yAxisMax = (maxValue < 10) ? 10 : maxValue * 1.2;
 
     return Card(
@@ -333,7 +337,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Tren Kepadatan ($_selectedPeriod)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                Text('Tren Akumulasi ($_selectedPeriod)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const Icon(Icons.bar_chart, color: Colors.blueAccent),
               ],
             ),
@@ -342,7 +346,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               aspectRatio: 1.5,
               child: BarChart(
                 BarChartData(
-                  maxY: yAxisMax, // Gunakan Skala Dinamis
+                  maxY: yAxisMax,
                   barGroups: List.generate(_barValues.length, (index) {
                     return BarChartGroupData(
                       x: index,
@@ -350,7 +354,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         BarChartRodData(
                           toY: _barValues[index],
                           gradient: const LinearGradient(colors: [Colors.blueAccent, Colors.lightBlueAccent], begin: Alignment.bottomCenter, end: Alignment.topCenter),
-                          width: 14,
+                          width: _selectedPeriod == 'Mingguan' ? 16 : 22,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                           backDrawRodData: BackgroundBarChartRodData(show: true, toY: yAxisMax, color: Colors.white.withOpacity(0.05)),
                         ),
@@ -363,7 +367,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     show: true,
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (val, meta) => Text(val.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10)))),
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (val, meta) => Text(val.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10)))),
                     bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (val, meta) {
                       if (val.toInt() < _barLabels.length) {
                         return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(_barLabels[val.toInt()], style: const TextStyle(color: Colors.white70, fontSize: 10)));
@@ -381,10 +385,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildVehicleDistributionCard() {
-    // Default value kecil agar pie chart tidak hilang jika data 0
     double mobilVal = _pieValues.isNotEmpty ? _pieValues[0] : 0;
     double motorVal = _pieValues.length > 1 ? _pieValues[1] : 0;
     double busTrukVal = _pieValues.length > 2 ? _pieValues[2] : 0;
+
+    if (mobilVal == 0 && motorVal == 0 && busTrukVal == 0) {
+      return Card(
+         color: Theme.of(context).cardColor,
+         child: const Padding(
+           padding: EdgeInsets.all(20),
+           child: Center(child: Text("Data komposisi belum tersedia", style: TextStyle(color: Colors.grey))),
+         ),
+      );
+    }
 
     return Card(
       color: Theme.of(context).cardColor,
@@ -465,7 +478,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             if (_rankingList.isEmpty)
               const Center(child: Padding(
                 padding: EdgeInsets.all(16.0),
-                child: Text("Data kosong", style: TextStyle(color: Colors.grey)),
+                child: Text("Menunggu data...", style: TextStyle(color: Colors.grey)),
               ))
             else
               ListView.separated(
@@ -476,9 +489,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 itemBuilder: (context, index) {
                   final data = _rankingList[index];
                   int total = data['total'];
-                  // Simulasi % Kepadatan (Total / 20 * 100) -> 20 mobil dianggap 100% macet
-                  int density = ((total / 20.0) * 100).toInt(); 
-                  if(density > 100) density = 100;
+                  int maxTotal = _rankingList[0]['total'];
+                  int percent = maxTotal > 0 ? ((total / maxTotal) * 100).toInt() : 0;
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -499,11 +511,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              Text("Total Kendaraan: $total", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              Text("Akumulasi: $total", style: const TextStyle(color: Colors.grey, fontSize: 11)),
                             ],
                           ),
                         ),
-                        Text('$density%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: density > 80 ? Colors.redAccent : Colors.orangeAccent)),
+                        Text('$percent%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: percent > 80 ? Colors.redAccent : Colors.orangeAccent)),
                       ],
                     ),
                   );

@@ -13,14 +13,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_database/firebase_database.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-// Import Service (Database)
 import 'package:smarttrafficapp/services/traffic_service.dart';
-
-// Import Data & Models
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
 import 'package:smarttrafficapp/models/cctv.dart';
-
-// Import Screens & Widgets
 import 'package:smarttrafficapp/screens/chat_screen.dart';
 import 'package:smarttrafficapp/screens/notification_screen.dart';
 import 'package:smarttrafficapp/widgets/summary_card.dart';
@@ -37,18 +32,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final MapController _mapController = MapController();
-  
-  // Panggil Service Database
   final TrafficService _trafficService = TrafficService();
 
-  // State Rute & Data
   List<Polyline> _routeLines = [];
   List<Marker> _routeMarkers = [];
   Map<String, Map<String, double>> _cctvCongestionData = {};
 
-  final List<String> _earlyWarningMessages = [
-    'PERINGATAN DINI: Kepadatan Ekstrem di Jl. Gatot Subroto, Semarang.',
-  ];
+  // List Peringatan Dinamis (Nanti diisi dari Firebase)
+  List<String> _activeWarnings = [];
 
   static const LatLng _initialCenter = LatLng(-7.150975, 110.140259); 
   static const double _initialZoom = 8;
@@ -81,9 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ================= FUNGSI LOKASI & PETA =================
 
   Future<LatLng?> getCoordinatesFromNominatim(String query) async {
-    final String searchQuery = "$query, Indonesia";
-    final String url = 'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(searchQuery)}&format=json&limit=1';
-
+    final String url = 'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent("$query, Indonesia")}&format=json&limit=1';
     try {
       final response = await http.get(Uri.parse(url), headers: {'User-Agent': 'SmartTrafficApp/1.0'});
       if (response.statusCode == 200) {
@@ -127,7 +116,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return [start, end];
   }
 
-  // FUNGSI GPS
   Future<Position?> _determinePosition(BuildContext context) async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -182,60 +170,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final List<CCTV> cctvList = cctvProvider.cctvList;
     final numberFormat = NumberFormat("#,##0", "id_ID");
 
-    // --- STREAM BUILDER DATA REAL-TIME ---
     return StreamBuilder(
       stream: _trafficService.trafficStream,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         
-        // --- LOGIKA HITUNG DATA (PARSING CERDAS) ---
-        int grandTotalKendaraan = 0;
+        int grandTotalHariIni = 0;
         String generalStatus = "Lancar";
-        int macetCount = 0;
+        
+        // Reset list peringatan setiap ada data baru
+        _activeWarnings = []; 
         
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           try {
-            // Data dari Firebase (traffic_stats)
             final rawData = snapshot.data!.snapshot.value;
             
-            if (rawData is Map) {
-              rawData.forEach((key, value) {
-                if (value is Map) {
-                  int cctvTotal = 0;
-                  String status = "Lancar";
+            // Helper process item
+            void processItem(String key, dynamic value) {
+              if (value is Map) {
+                int cctvTotal = 0;
+                String status = "Lancar";
+                String cctvName = "CCTV $key"; // Default name
 
-                  // --- LOGIKA UTAMA: Handle 2 Struktur Berbeda ---
-                  // 1. Jika ada folder 'live' (seperti ID 4)
-                  if (value.containsKey('live') && value['live'] is Map) {
-                    final liveData = value['live'] as Map;
+                // Coba cari nama asli dari list lokal
+                try {
+                   final cctv = cctvList.firstWhere((c) => c.id == key);
+                   cctvName = cctv.name;
+                } catch(e){ /*ignore*/ }
+
+                // PARSING DATA
+                if (value.containsKey('live') && value['live'] is Map) {
+                  final liveData = value['live'] as Map;
+                  
+                  // Ambil total akumulasi hari ini
+                  if (liveData.containsKey('total_akumulasi_hari_ini')) {
+                    cctvTotal = int.tryParse(liveData['total_akumulasi_hari_ini'].toString()) ?? 0;
+                  } else {
                     cctvTotal = int.tryParse(liveData['total']?.toString() ?? '0') ?? 0;
-                    status = liveData['status']?.toString() ?? 'Lancar';
-                  } 
-                  // 2. Jika data langsung di root (seperti ID 3)
-                  else if (value.containsKey('total')) {
-                    cctvTotal = int.tryParse(value['total']?.toString() ?? '0') ?? 0;
-                    status = value['status']?.toString() ?? 'Lancar';
                   }
 
-                  // Tambahkan ke total global
-                  grandTotalKendaraan += cctvTotal;
-
-                  // Cek Status Macet
-                  if (status.toLowerCase().contains('macet')) {
-                    macetCount++;
-                    generalStatus = "Macet"; 
-                  } else if (status.toLowerCase().contains('padat') && generalStatus != "Macet") {
-                    generalStatus = "Padat";
-                  }
+                  status = liveData['status']?.toString() ?? 'Lancar';
                 }
-              });
+
+                grandTotalHariIni += cctvTotal;
+
+                // --- LOGIKA PERINGATAN (REALTIME DARI FIREBASE) ---
+                if (status.toLowerCase().contains('macet')) {
+                  generalStatus = "Macet"; 
+                  // Tambahkan ke list peringatan
+                  _activeWarnings.add("Kepadatan Tinggi di $cctvName");
+                } else if (status.toLowerCase().contains('padat')) {
+                   if(generalStatus != "Macet") generalStatus = "Padat";
+                }
+              }
             }
+
+            if (rawData is Map) {
+              rawData.forEach((key, value) => processItem(key.toString(), value));
+            } else if (rawData is List) {
+              for (int i=0; i<rawData.length; i++) {
+                if (rawData[i] != null) processItem(i.toString(), rawData[i]);
+              }
+            }
+
           } catch (e) {
             debugPrint("Error parsing dashboard data: $e");
           }
         }
 
-        // Peringatan = Default + Jumlah CCTV Macet
-        int totalWarnings = _earlyWarningMessages.length + macetCount;
+        // Jumlah Peringatan sekarang murni dari data Macet
+        int totalWarnings = _activeWarnings.length;
 
         return Scaffold(
           appBar: AppBar(
@@ -251,7 +254,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.notifications_none),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialNotifications: _earlyWarningMessages))),
+                    // Kirim list peringatan real ke layar notifikasi
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialNotifications: _activeWarnings))),
                   ),
                   if (totalWarnings > 0)
                     Positioned(
@@ -272,13 +276,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Ringkasan Data (REAL TIME DARI FIREBASE)
+                // 1. RINGKASAN DATA
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     SummaryCard(
                       title: 'Total Kendaraan', 
-                      value: numberFormat.format(grandTotalKendaraan), // Total semua CCTV
+                      value: numberFormat.format(grandTotalHariIni), 
                       valueColor: Colors.green, 
                       icon: Icons.directions_car
                     ),
@@ -290,23 +294,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     SummaryCard(
                       title: 'Peringatan', 
-                      value: '$totalWarnings', 
-                      valueColor: Colors.red, 
-                      icon: Icons.warning
+                      value: '$totalWarnings', // Angka Real-time (Bisa 0)
+                      valueColor: totalWarnings > 0 ? Colors.red : Colors.green, 
+                      icon: totalWarnings > 0 ? Icons.warning : Icons.check_circle
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
                 
-                // 2. Peta Interaktif
                 _buildMapSection(context, [...cctvList.map((c) => _buildCCTVMarker(context, c)).toList(), ..._routeMarkers]),
                 const SizedBox(height: 24),
                 
-                // 3. Live Feed CCTV
                 _buildLiveFeedList(context, cctvList),
                 const SizedBox(height: 24),
                 
-                // 4. Grafik Kepadatan
                 _buildCongestionTrendChartsPerCCTV(context, cctvList),
                 const SizedBox(height: 20),
               ],
@@ -447,7 +448,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ])));
   }
 
-  // --- POPUP ROUTE PLANNER (DENGAN GPS FIX) ---
   Future<void> _showRoutePlanningDialog(BuildContext context) async {
     TextEditingController startController = TextEditingController();
     TextEditingController destinationController = TextEditingController();
