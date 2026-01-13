@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Icons
   cupertino_icons: ^1.0.8
@@ -40,7 +42,7 @@ dependencies:
   image_picker: ^1.1.2
   
   # Utilities & Storage
-  intl: ^0.19.0
+  intl: ^0.20.2
   http: ^1.2.2
   csv: ^6.0.0 
   shared_preferences: ^2.3.2
