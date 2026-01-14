@@ -14,7 +14,7 @@ class CameraManagementScreen extends StatefulWidget {
 }
 
 class _CameraManagementScreenState extends State<CameraManagementScreen> {
-  String _searchQuery = ''; 
+  String _searchQuery = '';
 
   // Filter List CCTV Berdasarkan Pencarian
   List<CCTV> _getFilteredCCTVList(List<CCTV> cctvList) {
@@ -36,16 +36,20 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
     );
 
     if (result != null && mounted) {
-      final cctvDataSource = Provider.of<CCTVDataSource>(context, listen: false);
-      
+      final cctvDataSource =
+          Provider.of<CCTVDataSource>(context, listen: false);
+
       if (cctvToEdit == null) {
         cctvDataSource.addCCTV(result);
-        _showSnackBar('Kamera "${result.name}" berhasil ditambahkan!', Colors.green);
+        _showSnackBar(
+            'Kamera "${result.name}" berhasil ditambahkan!', Colors.green);
       } else {
         // Pertahankan ID lama jika edit
-        final updatedCCTV = result.copyWith(id: cctvToEdit.id); 
-        cctvDataSource.updateCCTV(cctvToEdit.id, updatedCCTV); // Pastikan kirim ID dan Object
-        _showSnackBar('Kamera "${result.name}" berhasil diperbarui!', Colors.blue);
+        final updatedCCTV = result.copyWith(id: cctvToEdit.id);
+        cctvDataSource.updateCCTV(
+            cctvToEdit.id, updatedCCTV); // Pastikan kirim ID dan Object
+        _showSnackBar(
+            'Kamera "${result.name}" berhasil diperbarui!', Colors.blue);
       }
     }
   }
@@ -57,8 +61,10 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Hapus Kamera?', style: TextStyle(color: Colors.white)),
-        content: Text('Anda yakin ingin menghapus "$cctvName"?', style: const TextStyle(color: Colors.white70)),
+        title:
+            const Text('Hapus Kamera?', style: TextStyle(color: Colors.white)),
+        content: Text('Anda yakin ingin menghapus "$cctvName"?',
+            style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -74,7 +80,8 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
     );
 
     if (confirm == true && mounted) {
-      final cctvDataSource = Provider.of<CCTVDataSource>(context, listen: false);
+      final cctvDataSource =
+          Provider.of<CCTVDataSource>(context, listen: false);
       cctvDataSource.deleteCCTV(cctvId);
       _showSnackBar('Kamera "$cctvName" telah dihapus.', Colors.redAccent);
     }
@@ -95,6 +102,15 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
+
+        // --- TAMBAHKAN BAGIAN INI (TOMBOL MENU) ---
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            // Membuka Sidebar/Drawer
+            Scaffold.of(context).openDrawer();
+          },
+        ),
       ),
       // Gunakan Consumer agar UI otomatis update jika data firebase berubah
       body: Consumer<CCTVDataSource>(
@@ -106,13 +122,15 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
             children: [
               // SEARCH BAR
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: TextField(
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'Cari nama, lokasi, atau ID...',
                     hintStyle: TextStyle(color: Colors.grey[500]),
-                    prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+                    prefixIcon:
+                        const Icon(Icons.search, color: Colors.blueAccent),
                     filled: true,
                     fillColor: Theme.of(context).cardColor,
                     border: OutlineInputBorder(
@@ -132,7 +150,8 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.videocam_off, size: 64, color: Colors.grey[800]),
+                            Icon(Icons.videocam_off,
+                                size: 64, color: Colors.grey[800]),
                             const SizedBox(height: 16),
                             Text(
                               'Tidak ada data kamera.',
@@ -142,7 +161,8 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 100),
+                        padding: const EdgeInsets.only(
+                            left: 16, right: 16, top: 8, bottom: 100),
                         itemCount: filteredList.length,
                         itemBuilder: (context, index) {
                           return _buildCCTVCard(context, filteredList[index]);
@@ -153,7 +173,7 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
           );
         },
       ),
-      
+
       // TOMBOL TAMBAH
       floatingActionButton: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -176,23 +196,24 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
   // WIDGET KARTU CCTV
   Widget _buildCCTVCard(BuildContext context, CCTV cctv) {
     // Normalisasi Status agar konsisten
-    final bool isOnline = cctv.status.toLowerCase() == 'online' || cctv.status.toLowerCase() == 'aktif';
+    final bool isOnline = cctv.status.toLowerCase() == 'online' ||
+        cctv.status.toLowerCase() == 'aktif';
     final bool isMacet = cctv.status.toLowerCase() == 'macet';
-    
+
     // Warna Status (Hijau = Online, Merah = Offline/Macet)
     Color statusColor = isOnline ? Colors.green : Colors.red;
-    if(isMacet) statusColor = Colors.orange;
+    if (isMacet) statusColor = Colors.orange;
 
     String? videoId = YoutubePlayer.convertUrlToId(cctv.rstpUrl);
-    String thumbnailUrl = videoId != null 
-        ? 'https://img.youtube.com/vi/$videoId/mqdefault.jpg' 
+    String thumbnailUrl = videoId != null
+        ? 'https://img.youtube.com/vi/$videoId/mqdefault.jpg'
         : 'https://via.placeholder.com/150';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
-      color: Theme.of(context).cardColor, 
+      color: Theme.of(context).cardColor,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => _addOrEditCCTV(cctvToEdit: cctv),
@@ -207,26 +228,32 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                 child: Container(
                   width: 90,
                   height: 70,
-                  color: Colors.black26, 
+                  color: Colors.black26,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       Image.network(
                         thumbnailUrl,
-                        width: 90, height: 70, fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey),
+                        width: 90,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (c, e, s) =>
+                            const Icon(Icons.broken_image, color: Colors.grey),
                       ),
                       Container(
                         padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
-                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16),
+                        decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            shape: BoxShape.circle),
+                        child: const Icon(Icons.play_arrow_rounded,
+                            color: Colors.white, size: 16),
                       ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(width: 16),
-              
+
               // INFO TEXT
               Expanded(
                 child: Column(
@@ -234,19 +261,24 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                   children: [
                     Text(
                       cctv.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(Icons.location_on, size: 14, color: Colors.grey[400]),
+                        Icon(Icons.location_on,
+                            size: 14, color: Colors.grey[400]),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             cctv.location,
-                            style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[400]),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -256,14 +288,17 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
                     const SizedBox(height: 8),
                     // STATUS BADGE
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
+                        border: Border.all(
+                            color: statusColor.withOpacity(0.3), width: 1),
                       ),
                       child: Text(
-                        cctv.status.toUpperCase(), // Tampilkan status asli (Online/Macet/Offline)
+                        cctv.status
+                            .toUpperCase(), // Tampilkan status asli (Online/Macet/Offline)
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -280,12 +315,14 @@ class _CameraManagementScreenState extends State<CameraManagementScreen> {
               Column(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+                    icon: const Icon(Icons.edit_outlined,
+                        color: Colors.blueAccent),
                     onPressed: () => _addOrEditCCTV(cctvToEdit: cctv),
                     tooltip: 'Edit',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    icon: const Icon(Icons.delete_outline,
+                        color: Colors.redAccent),
                     onPressed: () => _deleteCCTV(cctv.id, cctv.name),
                     tooltip: 'Hapus',
                   ),
@@ -310,7 +347,7 @@ class CCTVFormDialog extends StatefulWidget {
 
 class _CCTVFormDialogState extends State<CCTVFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _nameController;
   late TextEditingController _locationController;
   late TextEditingController _rstpUrlController;
@@ -322,16 +359,20 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.cctv?.name ?? '');
-    _locationController = TextEditingController(text: widget.cctv?.location ?? '');
-    _rstpUrlController = TextEditingController(text: widget.cctv?.rstpUrl ?? '');
-    _latController = TextEditingController(text: widget.cctv?.latitude.toString() ?? '');
-    _lonController = TextEditingController(text: widget.cctv?.longitude.toString() ?? '');
-    
+    _locationController =
+        TextEditingController(text: widget.cctv?.location ?? '');
+    _rstpUrlController =
+        TextEditingController(text: widget.cctv?.rstpUrl ?? '');
+    _latController =
+        TextEditingController(text: widget.cctv?.latitude.toString() ?? '');
+    _lonController =
+        TextEditingController(text: widget.cctv?.longitude.toString() ?? '');
+
     // Normalisasi status
     String statusRaw = widget.cctv?.status ?? 'Online';
     // Pastikan status ada di list dropdown
     if (!['Online', 'Offline', 'Macet'].contains(statusRaw)) {
-        statusRaw = 'Online';
+      statusRaw = 'Online';
     }
     _selectedStatus = statusRaw;
   }
@@ -352,7 +393,8 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       filled: true,
       fillColor: const Color(0xFF2C2C2C),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       hintStyle: TextStyle(color: Colors.grey[600]),
       labelStyle: const TextStyle(color: Colors.white70),
     );
@@ -362,9 +404,11 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
-          Icon(widget.cctv == null ? Icons.add_circle : Icons.edit, color: Colors.blueAccent),
+          Icon(widget.cctv == null ? Icons.add_circle : Icons.edit,
+              color: Colors.blueAccent),
           const SizedBox(width: 10),
-          Text(widget.cctv == null ? 'Tambah Kamera' : 'Edit Kamera', style: const TextStyle(color: Colors.white)),
+          Text(widget.cctv == null ? 'Tambah Kamera' : 'Edit Kamera',
+              style: const TextStyle(color: Colors.white)),
         ],
       ),
       content: SizedBox(
@@ -378,21 +422,29 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
                 TextFormField(
                   controller: _nameController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'Nama CCTV', prefixIcon: const Icon(Icons.videocam, color: Colors.grey)),
+                  decoration: inputDecoration.copyWith(
+                      labelText: 'Nama CCTV',
+                      prefixIcon:
+                          const Icon(Icons.videocam, color: Colors.grey)),
                   validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _locationController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'Lokasi', prefixIcon: const Icon(Icons.location_on, color: Colors.grey)),
+                  decoration: inputDecoration.copyWith(
+                      labelText: 'Lokasi',
+                      prefixIcon:
+                          const Icon(Icons.location_on, color: Colors.grey)),
                   validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _rstpUrlController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'URL Stream (YouTube/RTSP)', prefixIcon: const Icon(Icons.link, color: Colors.grey)),
+                  decoration: inputDecoration.copyWith(
+                      labelText: 'URL Stream (YouTube/RTSP)',
+                      prefixIcon: const Icon(Icons.link, color: Colors.grey)),
                   validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
                 ),
                 const SizedBox(height: 12),
@@ -400,8 +452,13 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
                   value: _selectedStatus,
                   dropdownColor: const Color(0xFF2C2C2C),
                   style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'Status', prefixIcon: const Icon(Icons.info_outline, color: Colors.grey)),
-                  items: ['Online', 'Offline', 'Macet'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                  decoration: inputDecoration.copyWith(
+                      labelText: 'Status',
+                      prefixIcon:
+                          const Icon(Icons.info_outline, color: Colors.grey)),
+                  items: ['Online', 'Offline', 'Macet']
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
                   onChanged: (v) => setState(() => _selectedStatus = v!),
                 ),
                 const SizedBox(height: 12),
@@ -412,7 +469,10 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
                         controller: _latController,
                         style: const TextStyle(color: Colors.white),
                         keyboardType: TextInputType.number,
-                        decoration: inputDecoration.copyWith(labelText: 'Latitude', prefixIcon: const Icon(Icons.map, size: 18, color: Colors.grey)),
+                        decoration: inputDecoration.copyWith(
+                            labelText: 'Latitude',
+                            prefixIcon: const Icon(Icons.map,
+                                size: 18, color: Colors.grey)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -421,7 +481,8 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
                         controller: _lonController,
                         style: const TextStyle(color: Colors.white),
                         keyboardType: TextInputType.number,
-                        decoration: inputDecoration.copyWith(labelText: 'Longitude'),
+                        decoration:
+                            inputDecoration.copyWith(labelText: 'Longitude'),
                       ),
                     ),
                   ],
@@ -443,7 +504,8 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: Text(widget.cctv == null ? 'Simpan' : 'Update'),
         ),
@@ -455,7 +517,7 @@ class _CCTVFormDialogState extends State<CCTVFormDialog> {
     if (_formKey.currentState!.validate()) {
       final newCCTV = CCTV(
         // ID: Jika edit pakai ID lama, jika baru generate pakai Timestamp agar unik
-        id: widget.cctv?.id ?? 'cctv_${DateTime.now().millisecondsSinceEpoch}', 
+        id: widget.cctv?.id ?? 'cctv_${DateTime.now().millisecondsSinceEpoch}',
         name: _nameController.text,
         location: _locationController.text,
         rstpUrl: _rstpUrlController.text,

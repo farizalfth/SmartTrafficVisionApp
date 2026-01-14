@@ -11,53 +11,52 @@ class CCTVDataSource extends ChangeNotifier {
   
   late final DatabaseReference _trafficRef;
 
-  // List Internal (Metadata Nama & URL disimpan di HP sementara)
-  // Agar bisa di-Edit/Delete lewat Menu Manajemen Kamera
+  // List Internal (Diupdate sesuai data Web Service: ID 1-5, Nama, Lokasi, URL, Koordinat)
   final List<CCTV> _cctvList = [
     CCTV(
-      id: 'cctv_01', // ID HARUS SAMA DENGAN DI PYTHON/FIREBASE
+      id: '1', 
       name: 'CCTV Pontianak (Simpang Garuda)',
-      location: 'Simpang Garuda, Pontianak',
-      latitude: -0.0223, 
-      longitude: 109.3322,
+      location: 'Pontianak, Kalimantan Barat',
+      latitude: -0.023851, 
+      longitude: 109.333423,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=9_C8fP2_C68',
+      rstpUrl: 'https://www.youtube.com/watch?v=_xzKYnk6zSE',
     ),
     CCTV(
-      id: 'cctv_02',
+      id: '2',
       name: 'CCTV Pontianak (Tugu Khatulistiwa)',
-      location: 'Tugu Khatulistiwa, Pontianak',
-      latitude: 0.0000,
-      longitude: 109.3217,
+      location: 'Pontianak, Kalimantan Barat',
+      latitude: 0.000000,
+      longitude: 109.321100,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=DUMMY_LINK',
+      rstpUrl: 'https://www.youtube.com/watch?v=BEw38LHC5x4',
     ),
     CCTV(
-      id: 'cctv_03',
+      id: '3',
       name: 'CCTV Demak (Alun-Alun)',
-      location: 'Alun-Alun, Demak',
-      latitude: -6.8944, 
-      longitude: 110.6386,
+      location: 'Demak, Jawa Tengah',
+      latitude: -6.894621, 
+      longitude: 110.636922,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=DUMMY_LINK',
+      rstpUrl: 'https://www.youtube.com/watch?v=zf8RYyF6BoI',
     ),
     CCTV(
-      id: 'cctv_04',
+      id: '4',
       name: 'CCTV Demak (Pasar Bintoro)',
-      location: 'Pasar Bintoro, Demak',
-      latitude: -6.8925, 
-      longitude: 110.6401,
+      location: 'Demak, Jawa Tengah',
+      latitude: -6.8850, 
+      longitude: 110.6400,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=DUMMY_LINK',
+      rstpUrl: 'https://www.youtube.com/watch?v=7c4CsGkmBu8',
     ),
     CCTV(
-      id: 'cctv_05',
+      id: '5',
       name: 'CCTV Demak (Pertigaan Trengguli)',
-      location: 'Pertigaan Trengguli, Demak',
-      latitude: -6.8372, 
-      longitude: 110.6975,
+      location: 'Demak, Jawa Tengah',
+      latitude: -6.8700, 
+      longitude: 110.6500,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=DUMMY_LINK',
+      rstpUrl: 'https://www.youtube.com/watch?v=5nw3G2jtWaU',
     ),
   ];
 
@@ -75,7 +74,8 @@ class CCTVDataSource extends ChangeNotifier {
     try {
       final firebaseApp = Firebase.app();
       final rtdb = FirebaseDatabase.instanceFor(app: firebaseApp, databaseURL: _dbUrl);
-      _trafficRef = rtdb.ref('traffic_data');
+      // Mengarah ke traffic_stats untuk mendapatkan status jika ada
+      _trafficRef = rtdb.ref('traffic_stats');
 
       // Dengarkan data real-time
       _trafficRef.onValue.listen((event) {
@@ -91,58 +91,63 @@ class CCTVDataSource extends ChangeNotifier {
   // --- LOGIKA UPDATE STATUS DARI FIREBASE ---
   void _updateStatusFromFirebase(dynamic data) {
     try {
-      final Map<dynamic, dynamic> values = data as Map<dynamic, dynamic>;
-      bool hasChange = false;
+      if (data is Map) {
+        bool hasChange = false;
 
-      // Loop data dari firebase (misal: cctv_01: {kepadatan: Macet})
-      values.forEach((key, value) {
-        final String remoteId = key.toString();
-        // Hapus variabel mobil/motor yang tidak terpakai agar warning hilang
-        // final int mobil = value['mobil'] ?? 0;  <-- HAPUS INI
-        // final int motor = value['motor'] ?? 0;  <-- HAPUS INI
-        final String kepadatan = value['kepadatan'] ?? 'Normal';
+        data.forEach((key, value) {
+          final String remoteId = key.toString();
+          String kepadatan = 'Normal';
 
-        // Cari CCTV di list lokal yang ID-nya sama
-        final index = _cctvList.indexWhere((c) => c.id == remoteId);
-        if (index != -1) {
-          // Update statusnya saja, nama/lokasi tetap dari inputan user
-          String newStatus = (kepadatan == 'Macet') ? 'Macet' : 'Online';
-          
-          if (_cctvList[index].status != newStatus) {
-            // Kita gunakan copyWith (pastikan model CCTV punya method copyWith)
-            // Atau buat object baru manual
-            _cctvList[index] = CCTV(
-              id: _cctvList[index].id,
-              name: _cctvList[index].name,
-              location: _cctvList[index].location,
-              latitude: _cctvList[index].latitude,
-              longitude: _cctvList[index].longitude,
-              rstpUrl: _cctvList[index].rstpUrl,
-              thumbnailUrl: _cctvList[index].thumbnailUrl,
-              lastUpdate: DateTime.now().toString(),
-              status: newStatus, // <-- Ini yang diupdate dari Firebase
-            );
-            hasChange = true;
+          // Cek status di dalam struktur traffic_stats
+          if (value is Map && value.containsKey('live') && value['live'] is Map) {
+             final live = value['live'];
+             if (live['status'] != null) {
+               kepadatan = live['status'];
+             }
           }
-        }
-      });
 
-      if (hasChange) notifyListeners();
+          // Cari CCTV di list lokal yang ID-nya sama
+          // Menggunakan smart matching (hapus karakter non-angka)
+          final index = _cctvList.indexWhere((c) {
+             String cleanLocal = c.id.replaceAll(RegExp(r'[^0-9]'), '');
+             String cleanRemote = remoteId.replaceAll(RegExp(r'[^0-9]'), '');
+             return cleanLocal == cleanRemote;
+          });
+
+          if (index != -1) {
+            String newStatus = (kepadatan.contains('Macet')) ? 'Macet' : 'Online';
+            
+            if (_cctvList[index].status != newStatus) {
+              _cctvList[index] = CCTV(
+                id: _cctvList[index].id,
+                name: _cctvList[index].name,
+                location: _cctvList[index].location,
+                latitude: _cctvList[index].latitude,
+                longitude: _cctvList[index].longitude,
+                rstpUrl: _cctvList[index].rstpUrl,
+                thumbnailUrl: _cctvList[index].thumbnailUrl,
+                lastUpdate: DateTime.now().toString(),
+                status: newStatus, 
+              );
+              hasChange = true;
+            }
+          }
+        });
+
+        if (hasChange) notifyListeners();
+      }
     } catch (e) {
       debugPrint("Error Parsing: $e");
     }
   }
 
-  // --- CRUD METHODS (PERBAIKAN ERROR "Undefined Method") ---
+  // --- CRUD METHODS ---
   
-  // 1. Tambah CCTV
   void addCCTV(CCTV cctv) {
     _cctvList.add(cctv);
     notifyListeners();
   }
 
-  // 2. Update CCTV (Edit Nama/Url/Lokasi)
-  // Parameter pertama 'id' untuk mencari target, parameter kedua 'newCCTV' data barunya
   void updateCCTV(String id, CCTV newCCTV) {
     final index = _cctvList.indexWhere((c) => c.id == id);
     if (index != -1) {
@@ -151,7 +156,6 @@ class CCTVDataSource extends ChangeNotifier {
     }
   }
 
-  // 3. Hapus CCTV
   void deleteCCTV(String id) {
     _cctvList.removeWhere((c) => c.id == id);
     notifyListeners();

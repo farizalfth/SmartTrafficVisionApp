@@ -5,7 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 import 'dart:math';
 
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
@@ -20,12 +20,13 @@ class AnalyticsScreen extends StatefulWidget {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   // --- KONEKSI FIREBASE ---
-  static const String _dbUrl = 'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app/';
+  static const String _dbUrl =
+      'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app/';
   late final DatabaseReference _trafficRef;
 
   // State UI
-  String? _selectedCCTVId; 
-  
+  String? _selectedCCTVId;
+
   // Data Chart
   List<BarChartGroupData> _chartGroups = [];
   List<String> _dateLabels = [];
@@ -41,7 +42,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   void initState() {
     super.initState();
     final firebaseApp = Firebase.app();
-    final rtdb = FirebaseDatabase.instanceFor(app: firebaseApp, databaseURL: _dbUrl);
+    final rtdb =
+        FirebaseDatabase.instanceFor(app: firebaseApp, databaseURL: _dbUrl);
     _trafficRef = rtdb.ref('traffic_stats');
 
     _listenToFirebase();
@@ -52,7 +54,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       if (mounted && event.snapshot.value != null) {
         setState(() {
           _rawFirebaseData = event.snapshot.value;
-          _processData(); 
+          _processData();
         });
       }
     });
@@ -73,14 +75,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     // Fungsi Helper untuk memproses setiap Node CCTV
     void processCCTVNode(String key, dynamic value) {
       String idFirebase = key.toString();
-      
+
       // LOGIKA PENCOCOKAN ID (SMART MATCHING)
       // Mencocokkan "3" dengan "3" atau "cctv_03" dengan "3"
       bool isSelected = false;
       if (_selectedCCTVId == null) {
         isSelected = true; // Global mode
       } else {
-        String id1 = _selectedCCTVId!.replaceAll(RegExp(r'[^0-9]'), ''); // Ambil angkanya saja
+        String id1 = _selectedCCTVId!
+            .replaceAll(RegExp(r'[^0-9]'), ''); // Ambil angkanya saja
         String id2 = idFirebase.replaceAll(RegExp(r'[^0-9]'), '');
         // Cocokkan jika angkanya sama (misal '3' == '03')
         if (int.tryParse(id1) == int.tryParse(id2)) {
@@ -93,17 +96,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         if (isSelected && value.containsKey('daily_reports')) {
           print(">> Menemukan daily_reports untuk ID: $idFirebase");
           final reports = value['daily_reports'];
-          
+
           if (reports is Map) {
             reports.forEach((dateKey, reportData) {
               int total = 0;
               if (reportData is Map) {
-                total = int.tryParse(reportData['total_hari_ini']?.toString() ?? '0') ?? 0;
+                total = int.tryParse(
+                        reportData['total_hari_ini']?.toString() ?? '0') ??
+                    0;
               } else {
-                 // Kadang struktur bisa langsung angka
-                 total = int.tryParse(reportData.toString()) ?? 0;
+                // Kadang struktur bisa langsung angka
+                total = int.tryParse(reportData.toString()) ?? 0;
               }
-              
+
               // Tambahkan ke Map Total
               if (dailyTotals.containsKey(dateKey)) {
                 dailyTotals[dateKey] = dailyTotals[dateKey]! + total;
@@ -114,46 +119,52 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           }
           // Handle jika Firebase menganggapnya List (jarang untuk tanggal, tapi jaga-jaga)
           else if (reports is List) {
-             // Skip list logic for dates usually
+            // Skip list logic for dates usually
           }
-        } 
+        }
         // JIKA TIDAK ADA DAILY REPORTS, DUMMY DARI LIVE (Agar grafik tidak kosong)
         else if (isSelected && value.containsKey('live')) {
-           // Ambil total hari ini dari live
-           int liveTotal = 0;
-           if (value['live'] is Map && value['live']['total_akumulasi_hari_ini'] != null) {
-              liveTotal = int.tryParse(value['live']['total_akumulasi_hari_ini'].toString()) ?? 0;
-           }
-           
-           // Masukkan sebagai data hari ini
-           String todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
-           if (liveTotal > 0) {
-              dailyTotals[todayKey] = (dailyTotals[todayKey] ?? 0) + liveTotal;
-           }
+          // Ambil total hari ini dari live
+          int liveTotal = 0;
+          if (value['live'] is Map &&
+              value['live']['total_akumulasi_hari_ini'] != null) {
+            liveTotal = int.tryParse(
+                    value['live']['total_akumulasi_hari_ini'].toString()) ??
+                0;
+          }
+
+          // Masukkan sebagai data hari ini
+          String todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+          if (liveTotal > 0) {
+            dailyTotals[todayKey] = (dailyTotals[todayKey] ?? 0) + liveTotal;
+          }
         }
 
         // --- 2. AMBIL DATA PERINGKAT (GLOBAL ONLY) ---
         if (_selectedCCTVId == null) {
           int currentTotal = 0;
           if (value.containsKey('live') && value['live'] is Map) {
-             // Prioritas total_akumulasi_hari_ini
-             if (value['live']['total_akumulasi_hari_ini'] != null) {
-                currentTotal = int.tryParse(value['live']['total_akumulasi_hari_ini'].toString()) ?? 0;
-             } else {
-                currentTotal = int.tryParse(value['live']['total']?.toString() ?? '0') ?? 0;
-             }
+            // Prioritas total_akumulasi_hari_ini
+            if (value['live']['total_akumulasi_hari_ini'] != null) {
+              currentTotal = int.tryParse(
+                      value['live']['total_akumulasi_hari_ini'].toString()) ??
+                  0;
+            } else {
+              currentTotal =
+                  int.tryParse(value['live']['total']?.toString() ?? '0') ?? 0;
+            }
           }
-          
+
           String name = "CCTV $idFirebase";
           try {
             final cctv = cctvProvider.cctvList.firstWhere((c) {
-               // Pencocokan nama fleksibel
-               String cid = c.id.replaceAll(RegExp(r'[^0-9]'), '');
-               String fid = idFirebase.replaceAll(RegExp(r'[^0-9]'), '');
-               return int.tryParse(cid) == int.tryParse(fid);
+              // Pencocokan nama fleksibel
+              String cid = c.id.replaceAll(RegExp(r'[^0-9]'), '');
+              String fid = idFirebase.replaceAll(RegExp(r'[^0-9]'), '');
+              return int.tryParse(cid) == int.tryParse(fid);
             });
             name = cctv.name;
-          } catch (e) { /* ignore */ }
+          } catch (e) {/* ignore */}
 
           if (currentTotal > 0) {
             rankingTemp.add({'name': name, 'total': currentTotal});
@@ -164,7 +175,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
     // Loop data utama (Bisa Map atau List tergantung ID di Firebase)
     if (_rawFirebaseData is Map) {
-      _rawFirebaseData.forEach((key, value) => processCCTVNode(key.toString(), value));
+      _rawFirebaseData
+          .forEach((key, value) => processCCTVNode(key.toString(), value));
     } else if (_rawFirebaseData is List) {
       for (int i = 0; i < _rawFirebaseData.length; i++) {
         if (_rawFirebaseData[i] != null) {
@@ -177,7 +189,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
     // --- FINALISASI DATA CHART ---
     var sortedKeys = dailyTotals.keys.toList()..sort();
-    
+
     // Batasi 7 hari terakhir
     if (sortedKeys.length > 7) {
       sortedKeys = sortedKeys.sublist(sortedKeys.length - 7);
@@ -190,14 +202,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     for (int i = 0; i < sortedKeys.length; i++) {
       String dateKey = sortedKeys[i];
       double val = dailyTotals[dateKey]!.toDouble();
-      
+
       if (val > maxVal) maxVal = val;
 
       try {
         DateTime dt = DateTime.parse(dateKey);
         labels.add(DateFormat('d MMM', 'id_ID').format(dt));
       } catch (e) {
-        labels.add(dateKey.substring(5)); 
+        labels.add(dateKey.substring(5));
       }
 
       groups.add(
@@ -212,15 +224,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 end: Alignment.topCenter,
               ),
               width: 16,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-              backDrawRodData: BackgroundBarChartRodData(show: true, toY: (maxVal * 1.2 == 0 ? 10 : maxVal * 1.2), color: Colors.white.withOpacity(0.05)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
+              backDrawRodData: BackgroundBarChartRodData(
+                  show: true,
+                  toY: (maxVal * 1.2 == 0 ? 10 : maxVal * 1.2),
+                  color: Colors.white.withOpacity(0.05)),
             ),
           ],
         ),
       );
     }
 
-    rankingTemp.sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
+    rankingTemp
+        .sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
 
     setState(() {
       _chartGroups = groups;
@@ -245,6 +262,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+
+        // --- TAMBAHKAN BAGIAN INI (TOMBOL MENU) ---
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () {
+            // Membuka Sidebar/Drawer
+            Scaffold.of(context).openDrawer();
+          },
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -255,11 +281,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             const SizedBox(height: 24),
 
             _buildHistoryChart(), // CHART HARIAN (DARI DAILY REPORTS)
-            
+
             const SizedBox(height: 24),
-            
+
             if (_selectedCCTVId == null) _buildRankingCard(),
-            
+
             const SizedBox(height: 20),
           ],
         ),
@@ -277,11 +303,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Pilih Sumber Data (Kosong = Global)", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Text("Pilih Sumber Data (Kosong = Global)",
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.only(left: 12, right: 4), 
-              decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12)),
               child: Row(
                 children: [
                   Expanded(
@@ -290,18 +320,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         value: _selectedCCTVId,
                         isExpanded: true,
                         dropdownColor: const Color(0xFF2C2C2C),
-                        icon: const SizedBox.shrink(), 
-                        hint: const Text("Semua CCTV (Global)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        icon: const SizedBox.shrink(),
+                        hint: const Text("Semua CCTV (Global)",
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                         items: cctvList.map((cctv) {
                           return DropdownMenuItem(
                             value: cctv.id,
-                            child: Text(cctv.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                            child: Text(cctv.name,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis),
                           );
                         }).toList(),
                         onChanged: (val) {
                           setState(() {
                             _selectedCCTVId = val;
-                            _processData(); 
+                            _processData();
                           });
                         },
                       ),
@@ -309,7 +346,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                   if (_selectedCCTVId != null)
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.redAccent, size: 20),
+                      icon: const Icon(Icons.close,
+                          color: Colors.redAccent, size: 20),
                       onPressed: () {
                         setState(() {
                           _selectedCCTVId = null;
@@ -318,7 +356,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       },
                     )
                   else
-                    const Padding(padding: EdgeInsets.symmetric(horizontal: 12.0), child: Icon(Icons.keyboard_arrow_down, color: Colors.blueAccent)),
+                    const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Icon(Icons.keyboard_arrow_down,
+                            color: Colors.blueAccent)),
                 ],
               ),
             ),
@@ -342,59 +383,69 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Tren Volume Harian', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Tren Volume Harian',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
                 Icon(Icons.bar_chart, color: Colors.blueAccent),
               ],
             ),
             const SizedBox(height: 10),
-            const Text("Data berdasarkan 'daily_reports' Firebase", style: TextStyle(color: Colors.grey, fontSize: 10)),
+            const Text("Data berdasarkan 'daily_reports' Firebase",
+                style: TextStyle(color: Colors.grey, fontSize: 10)),
             const SizedBox(height: 30),
-            
             if (_chartGroups.isEmpty)
               const SizedBox(
                 height: 200,
-                child: Center(child: Text("Belum ada riwayat data", style: TextStyle(color: Colors.grey))),
+                child: Center(
+                    child: Text("Belum ada riwayat data",
+                        style: TextStyle(color: Colors.grey))),
               )
             else
               AspectRatio(
-                aspectRatio: 1.3, 
+                aspectRatio: 1.3,
                 child: BarChart(
                   BarChartData(
                     maxY: _maxY,
                     barGroups: _chartGroups,
                     gridData: FlGridData(
-                      show: true, 
-                      drawVerticalLine: false, 
-                      horizontalInterval: _maxY / 5, 
-                      getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)
-                    ),
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: _maxY / 5,
+                        getDrawingHorizontalLine: (v) =>
+                            FlLine(color: Colors.white10, strokeWidth: 1)),
                     borderData: FlBorderData(show: false),
                     titlesData: FlTitlesData(
                       show: true,
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
                       leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true, 
-                          reservedSize: 40, 
-                          getTitlesWidget: (val, meta) => Text(val.toInt().toString(), style: const TextStyle(color: Colors.grey, fontSize: 10))
-                        )
-                      ),
+                          sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 40,
+                              getTitlesWidget: (val, meta) => Text(
+                                  val.toInt().toString(),
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 10)))),
                       bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true, 
-                          reservedSize: 30, 
-                          getTitlesWidget: (val, meta) {
-                            if (val.toInt() >= 0 && val.toInt() < _dateLabels.length) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 8.0), 
-                                child: Text(_dateLabels[val.toInt()], style: const TextStyle(color: Colors.white70, fontSize: 10))
-                              );
-                            }
-                            return const Text('');
-                          }
-                        )
-                      ),
+                          sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 30,
+                              getTitlesWidget: (val, meta) {
+                                if (val.toInt() >= 0 &&
+                                    val.toInt() < _dateLabels.length) {
+                                  return Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(_dateLabels[val.toInt()],
+                                          style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10)));
+                                }
+                                return const Text('');
+                              })),
                     ),
                     barTouchData: BarTouchData(
                       touchTooltipData: BarTouchTooltipData(
@@ -403,11 +454,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           String date = _dateLabels[group.x.toInt()];
                           return BarTooltipItem(
                             '$date\n',
-                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12),
                             children: <TextSpan>[
                               TextSpan(
                                 text: rod.toY.toInt().toString(),
-                                style: const TextStyle(color: Colors.yellowAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    color: Colors.yellowAccent,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold),
                               ),
                             ],
                           );
@@ -437,27 +494,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Volume CCTV Tertinggi (Hari Ini)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Volume CCTV Tertinggi (Hari Ini)',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
                 Icon(Icons.emoji_events, color: Colors.amber),
               ],
             ),
             const SizedBox(height: 16),
-            
             if (_rankingList.isEmpty)
-              const Center(child: Padding(
+              const Center(
+                  child: Padding(
                 padding: EdgeInsets.all(16.0),
-                child: Text("Data belum tersedia", style: TextStyle(color: Colors.grey)),
+                child: Text("Data belum tersedia",
+                    style: TextStyle(color: Colors.grey)),
               ))
             else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _rankingList.length,
-                separatorBuilder: (context, index) => const Divider(color: Colors.white10),
+                separatorBuilder: (context, index) =>
+                    const Divider(color: Colors.white10),
                 itemBuilder: (context, index) {
                   final data = _rankingList[index];
                   int total = data['total'];
-                  
+
                   int maxTotal = _rankingList[0]['total'];
                   double relativeWidth = maxTotal > 0 ? (total / maxTotal) : 0;
 
@@ -466,27 +529,57 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     child: Row(
                       children: [
                         Container(
-                          width: 30, height: 30,
+                          width: 30,
+                          height: 30,
                           decoration: BoxDecoration(
-                            color: index == 0 ? Colors.amber.withOpacity(0.2) : Colors.transparent,
+                            color: index == 0
+                                ? Colors.amber.withOpacity(0.2)
+                                : Colors.transparent,
                             shape: BoxShape.circle,
-                            border: Border.all(color: index == 0 ? Colors.amber : Colors.grey.withOpacity(0.5), width: 2),
+                            border: Border.all(
+                                color: index == 0
+                                    ? Colors.amber
+                                    : Colors.grey.withOpacity(0.5),
+                                width: 2),
                           ),
-                          child: Center(child: Text('${index + 1}', style: TextStyle(fontWeight: FontWeight.bold, color: index == 0 ? Colors.amber : Colors.grey))),
+                          child: Center(
+                              child: Text('${index + 1}',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: index == 0
+                                          ? Colors.amber
+                                          : Colors.grey))),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text(data['name'],
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.white),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 6),
                               Stack(
                                 children: [
-                                  Container(height: 6, width: double.infinity, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(3))),
+                                  Container(
+                                      height: 6,
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                          color: Colors.white10,
+                                          borderRadius:
+                                              BorderRadius.circular(3))),
                                   FractionallySizedBox(
                                     widthFactor: relativeWidth,
-                                    child: Container(height: 6, decoration: BoxDecoration(color: Colors.blueAccent, borderRadius: BorderRadius.circular(3))),
+                                    child: Container(
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                            color: Colors.blueAccent,
+                                            borderRadius:
+                                                BorderRadius.circular(3))),
                                   )
                                 ],
                               ),
@@ -494,7 +587,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Text('$total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text('$total',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
                       ],
                     ),
                   );

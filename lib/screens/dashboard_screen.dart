@@ -180,28 +180,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Reset list peringatan setiap ada data baru
         _activeWarnings = []; 
         
+        // --- LOGIKA PARSING (TIDAK BERUBAH) ---
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           try {
             final rawData = snapshot.data!.snapshot.value;
             
-            // Helper process item
             void processItem(String key, dynamic value) {
               if (value is Map) {
                 int cctvTotal = 0;
                 String status = "Lancar";
-                String cctvName = "CCTV $key"; // Default name
+                String cctvName = "CCTV $key"; 
 
-                // Coba cari nama asli dari list lokal
                 try {
                    final cctv = cctvList.firstWhere((c) => c.id == key);
                    cctvName = cctv.name;
                 } catch(e){ /*ignore*/ }
 
-                // PARSING DATA
                 if (value.containsKey('live') && value['live'] is Map) {
                   final liveData = value['live'] as Map;
                   
-                  // Ambil total akumulasi hari ini
                   if (liveData.containsKey('total_akumulasi_hari_ini')) {
                     cctvTotal = int.tryParse(liveData['total_akumulasi_hari_ini'].toString()) ?? 0;
                   } else {
@@ -213,10 +210,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 grandTotalHariIni += cctvTotal;
 
-                // --- LOGIKA PERINGATAN (REALTIME DARI FIREBASE) ---
                 if (status.toLowerCase().contains('macet')) {
                   generalStatus = "Macet"; 
-                  // Tambahkan ke list peringatan
                   _activeWarnings.add("Kepadatan Tinggi di $cctvName");
                 } else if (status.toLowerCase().contains('padat')) {
                    if(generalStatus != "Macet") generalStatus = "Padat";
@@ -237,81 +232,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
 
-        // Jumlah Peringatan sekarang murni dari data Macet
         int totalWarnings = _activeWarnings.length;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Dashboard'),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen())),
-              ),
-              Stack(
+        // --- UPDATE TAMPILAN (CUSTOM HEADER DENGAN MENU) ---
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              
+              // 1. HEADER CUSTOM (Menu + Judul + Notifikasi)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none),
-                    // Kirim list peringatan real ke layar notifikasi
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialNotifications: _activeWarnings))),
-                  ),
-                  if (totalWarnings > 0)
-                    Positioned(
-                      right: 11, top: 11,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
-                        constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                        child: Text('$totalWarnings', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  // KIRI: Tombol Menu & Judul
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu, size: 28, color: Colors.white),
+                        onPressed: () {
+                          // INI KUNCINYA: Membuka Drawer milik parent (MainScreen)
+                          Scaffold.of(context).openDrawer(); 
+                        },
                       ),
-                    )
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Dashboard',
+                        style: TextStyle(
+                          fontSize: 28, 
+                          fontWeight: FontWeight.bold, 
+                          color: Colors.white
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // KANAN: Chat & Notifikasi
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen())),
+                      ),
+                      Stack(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications_none),
+                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialNotifications: _activeWarnings))),
+                          ),
+                          if (totalWarnings > 0)
+                            Positioned(
+                              right: 11, top: 11,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
+                                constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                                child: Text('$totalWarnings', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                              ),
+                            )
+                        ],
+                      ),
+                    ],
+                  ),
                 ],
               ),
+
+              const SizedBox(height: 24),
+
+              // 2. RINGKASAN DATA
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  SummaryCard(
+                    title: 'Total Kendaraan', 
+                    value: numberFormat.format(grandTotalHariIni), 
+                    valueColor: Colors.green, 
+                    icon: Icons.directions_car
+                  ),
+                  SummaryCard(
+                    title: 'Kepadatan Rata2', 
+                    value: generalStatus, 
+                    valueColor: generalStatus == "Macet" ? Colors.red : Colors.orange, 
+                    icon: Icons.traffic
+                  ),
+                  SummaryCard(
+                    title: 'Peringatan', 
+                    value: '$totalWarnings', 
+                    valueColor: totalWarnings > 0 ? Colors.red : Colors.green, 
+                    icon: totalWarnings > 0 ? Icons.warning : Icons.check_circle
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // 3. PETA
+              _buildMapSection(context, [...cctvList.map((c) => _buildCCTVMarker(context, c)).toList(), ..._routeMarkers]),
+              const SizedBox(height: 24),
+              
+              // 4. LIVE FEED
+              _buildLiveFeedList(context, cctvList),
+              const SizedBox(height: 24),
+              
+              // 5. GRAFIK (Gunakan data dummy dulu atau integrasikan parameter map seperti sebelumnya)
+              _buildCongestionTrendChartsPerCCTV(context, cctvList),
+              const SizedBox(height: 20),
             ],
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. RINGKASAN DATA
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    SummaryCard(
-                      title: 'Total Kendaraan', 
-                      value: numberFormat.format(grandTotalHariIni), 
-                      valueColor: Colors.green, 
-                      icon: Icons.directions_car
-                    ),
-                    SummaryCard(
-                      title: 'Kepadatan Rata2', 
-                      value: generalStatus, 
-                      valueColor: generalStatus == "Macet" ? Colors.red : Colors.orange, 
-                      icon: Icons.traffic
-                    ),
-                    SummaryCard(
-                      title: 'Peringatan', 
-                      value: '$totalWarnings', // Angka Real-time (Bisa 0)
-                      valueColor: totalWarnings > 0 ? Colors.red : Colors.green, 
-                      icon: totalWarnings > 0 ? Icons.warning : Icons.check_circle
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                
-                _buildMapSection(context, [...cctvList.map((c) => _buildCCTVMarker(context, c)).toList(), ..._routeMarkers]),
-                const SizedBox(height: 24),
-                
-                _buildLiveFeedList(context, cctvList),
-                const SizedBox(height: 24),
-                
-                _buildCongestionTrendChartsPerCCTV(context, cctvList),
-                const SizedBox(height: 20),
-              ],
-            ),
           ),
         );
       }

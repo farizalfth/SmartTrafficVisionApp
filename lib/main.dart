@@ -21,7 +21,9 @@ import 'package:smarttrafficapp/screens/camera_management_screen.dart';
 import 'package:smarttrafficapp/screens/report_screen.dart';
 import 'package:smarttrafficapp/screens/user_management_screen.dart';
 
+// --- TAMBAHKAN IMPORT INI UNTUK MEMPERBAIKI ERROR TANGGAL ---
 import 'package:intl/date_symbol_data_local.dart'; 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -29,14 +31,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  await initializeDateFormatting('id_ID', null);
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => AuthService()),
         ChangeNotifierProvider(create: (context) => CCTVDataSource()),
-        // TAMBAHAN (Opsional tapi Recommended):
-        // Provider(create: (context) => TrafficService()), 
-        // Kalau TrafficService bukan ChangeNotifier, pakai Provider biasa.
+
       ],
       child: const MyApp(),
     ),
@@ -52,15 +54,13 @@ class MyApp extends StatelessWidget {
       title: 'Smart Traffic Vision',
       debugShowCheckedModeBanner: false,
       
-      // --- KONFIGURASI TEMA GELAP (DARK THEME) ---
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
         primaryColor: Colors.blueAccent,
-        scaffoldBackgroundColor: const Color(0xFF1A1A1A), // Background Gelap Utama
-        cardColor: const Color(0xFF2C2C2C), // Warna Kartu
+        scaffoldBackgroundColor: const Color(0xFF1A1A1A), 
+        cardColor: const Color(0xFF2C2C2C), 
         
-        // Konfigurasi AppBar
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1A1A1A),
           foregroundColor: Colors.white,
@@ -68,7 +68,6 @@ class MyApp extends StatelessWidget {
           centerTitle: true,
         ),
         
-        // Konfigurasi Input Text
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF2C2C2C),
@@ -79,13 +78,12 @@ class MyApp extends StatelessWidget {
           hintStyle: TextStyle(color: Colors.grey[600]),
         ),
 
-        // Konfigurasi Floating Action Button
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
           backgroundColor: Colors.blueAccent,
           foregroundColor: Colors.white,
         ),
 
-        // Konfigurasi Warna Teks
+
         textTheme: const TextTheme(
           titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           bodyMedium: TextStyle(color: Colors.white70),
@@ -96,7 +94,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // Routing
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginPage(),
@@ -107,7 +104,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- AUTH WRAPPER (Cek Login) ---
+
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -115,7 +112,6 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, authService, child) {
-        // Cek status user dari AuthService
         if (authService.currentUser != null) {
           return const MainScreen();
         } else {
@@ -126,7 +122,7 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-// --- MAIN SCREEN (Sidebar & Navigasi Utama) ---
+
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -137,17 +133,15 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Daftar Halaman
   static final List<Widget> _widgetOptions = <Widget>[
     const DashboardScreen(),
     const LiveCCTVScreen(),
     const AnalyticsScreen(),
     const CameraManagementScreen(),
     const ReportScreen(),
-    const UserManagementScreen(), // Halaman Profil
+    const UserManagementScreen(),
   ];
 
-  // Judul AppBar
   final List<String> _titles = <String>[
     'Dashboard',
     'Live CCTV',
@@ -161,99 +155,62 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
-    Navigator.pop(context); // Tutup Drawer setelah klik
+    Navigator.pop(context); 
   }
 
   void _handleLogout() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     await authService.signOut();
-    // AuthWrapper akan otomatis mengarahkan ke Login
   }
 
-  // --- FUNGSI PENTING: MENENTUKAN SUMBER GAMBAR (DIPERBAIKI) ---
-  // Fungsi ini sekarang menerima objek User agar bisa membaca data dari memori komputer
   ImageProvider _getProfileImage(User? user) {
-    // 1. Cek User Null
+
     if (user == null) return const AssetImage('assets/images/profile.jpg');
 
-    // 2. PRIORITAS UTAMA: Gambar dari Memori Komputer (Web Upload)
     if (user.webImageBytes != null) {
       return MemoryImage(user.webImageBytes!);
     }
     
-    // 3. PRIORITAS KEDUA: Gambar dari URL Internet (Google)
     if (user.profilePictureUrl.isNotEmpty && user.profilePictureUrl.startsWith('http')) {
       return NetworkImage(user.profilePictureUrl);
     }
     
-    // 4. PRIORITAS KETIGA: Gambar dari Aset Lokal
     if (user.profilePictureUrl.startsWith('assets/')) {
       return AssetImage(user.profilePictureUrl);
     }
 
-    // 5. Fallback File Lokal (Untuk Mobile)
     try {
       if (user.profilePictureUrl.isNotEmpty) {
         return FileImage(File(user.profilePictureUrl));
       }
     } catch (e) {
-      // Ignore error
     }
 
-    // 6. Default Terakhir
     return const AssetImage('assets/images/profile.jpg');
   }
 
   @override
   Widget build(BuildContext context) {
-    // Menggunakan Provider untuk mendengar perubahan data user (termasuk foto)
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
-
-    // Data User (Fallback jika null)
     final String userName = user?.username ?? 'Admin User';
     final String userEmail = user?.email ?? 'admin@smarttraffic.id';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Pencarian global...')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tidak ada notifikasi baru.')),
-              );
-            },
-          ),
-        ],
-      ),
-      
-      // --- SIDEBAR (DRAWER) ---
+
       drawer: Drawer(
-        backgroundColor: const Color(0xFF1E1E1E), // Warna gelap elegan
+        backgroundColor: const Color(0xFF1E1E1E), 
         child: Column(
           children: [
-            // HEADER DRAWER
             UserAccountsDrawerHeader(
               decoration: const BoxDecoration(
                 color: Color(0xFF1A1A1A),
                 image: DecorationImage(
-                  // Pastikan gambar ini ada di assets/images/hero.png
                   image: AssetImage('assets/images/hero.png'), 
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
                 ),
               ),
-              // Logic Tampilan Foto Profil (Lingkaran 1:1)
               currentAccountPicture: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -263,7 +220,6 @@ class _MainScreenState extends State<MainScreen> {
                 child: CircleAvatar(
                   radius: 30,
                   backgroundColor: Colors.grey[800],
-                  // Menggunakan fungsi helper yang sudah diperbaiki
                   backgroundImage: _getProfileImage(user),
                 ),
               ),
@@ -274,7 +230,6 @@ class _MainScreenState extends State<MainScreen> {
               accountEmail: Text(userEmail),
             ),
 
-            // MENU ITEMS
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -290,7 +245,6 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
 
-            // FOOTER (LOGOUT)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: ListTile(
@@ -309,7 +263,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Widget Item Drawer Kustom
   Widget _buildDrawerItem(int index, IconData icon, String title) {
     bool isSelected = _selectedIndex == index;
     return Container(
