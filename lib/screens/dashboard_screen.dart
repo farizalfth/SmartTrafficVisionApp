@@ -263,14 +263,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           int grandTotalHariIni = 0;
           String generalStatus = "Lancar";
           _activeWarnings = [];
-
-          // Map baru untuk menampung statistik detail per CCTV untuk Grafik
           Map<String, Map<String, dynamic>> cctvStatsMap = {};
 
           if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
             try {
               final rawData = snapshot.data!.snapshot.value;
 
+              // Fungsi internal untuk memproses tiap data CCTV
               void processItem(String key, dynamic value) {
                 if (value is Map) {
                   int cctvTotal = 0;
@@ -279,66 +278,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   String duration = "-";
                   String cctvName = "CCTV $key";
 
+                  // Cari nama asli CCTV dari Provider
                   try {
                     final cctv = cctvList.firstWhere((c) => c.id == key);
                     cctvName = cctv.name;
                   } catch (e) {}
 
+                  // Ambil data dari node 'live'
                   if (value.containsKey('live') && value['live'] is Map) {
                     final liveData = value['live'] as Map;
-
-                    // 1. Ambil Total Akumulasi (Data Hari Ini)
                     cctvTotal = int.tryParse(
                             liveData['total_akumulasi_hari_ini']?.toString() ??
                                 '0') ??
                         0;
-
-                    // 2. Ambil Status (Real-time)
                     status = liveData['status']?.toString() ?? 'Lancar';
-
-                    // 3. Ambil Kepadatan (Sesuaikan Key: kepadatan_persen)
                     density = int.tryParse(
                             liveData['kepadatan_persen']?.toString() ?? '0') ??
                         0;
-
-                    // 4. Ambil Durasi (Sesuaikan Key: session_duration)
                     duration =
                         liveData['session_duration']?.toString() ?? "Aktif";
                   }
 
                   grandTotalHariIni += cctvTotal;
-
-                  // Masukkan ke Map untuk Grafik (Jangan dihapus)
                   cctvStatsMap[key] = {
                     'density': density,
                     'duration': duration,
                     'status': status,
+                    'name': cctvName,
                   };
 
-                  // --- LOGIKA NOTIFIKASI & STATUS UMUM ---
+                  // Logika Status Umum & Peringatan
                   if (status.toLowerCase().contains('macet')) {
                     generalStatus = "Macet";
-
-                    // Ambil waktu saat ini secara real-time
                     DateTime now = DateTime.now();
-                    String dayStr =
-                        DateFormat('EEEE', 'id_ID').format(now); // Contoh: Rabu
-                    String dateStr = DateFormat('dd MMMM yyyy', 'id_ID')
-                        .format(now); // Contoh: 15 Januari 2026
-                    String timeStr =
-                        DateFormat('HH:mm:ss').format(now); // Contoh: 07:15:30
+                    String dayStr = DateFormat('EEEE', 'id_ID').format(now);
+                    String dateStr =
+                        DateFormat('dd MMMM yyyy', 'id_ID').format(now);
+                    String timeStr = DateFormat('HH:mm:ss').format(now);
 
-                    // Masukkan informasi lengkap ke list peringatan
                     _activeWarnings.add(
                         "Kepadatan Tinggi di $cctvName\n$dayStr, $dateStr | Pukul $timeStr WIB");
-                  }
-                  // Tambahkan ini agar Summary Card "Kepadatan" di atas tetap berfungsi
-                  else if (status.toLowerCase().contains('padat')) {
+                  } else if (status.toLowerCase().contains('padat')) {
                     if (generalStatus != "Macet") generalStatus = "Padat";
                   }
                 }
               }
 
+              // Eksekusi pemrosesan data (Handle jika Firebase kirim List atau Map)
               if (rawData is Map) {
                 rawData.forEach(
                     (key, value) => processItem(key.toString(), value));
@@ -348,7 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
               }
             } catch (e) {
-              debugPrint("Error parsing dashboard data: $e");
+              debugPrint("Error processing dashboard data: $e");
             }
           }
 
@@ -436,32 +422,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 24),
 
                 // 2. RINGKASAN DATA
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    SummaryCard(
-                        title: 'Total Kendaraan',
-                        value: numberFormat.format(grandTotalHariIni),
-                        valueColor: Colors.green,
-                        icon: Icons.directions_car),
-                    SummaryCard(
-                        title: 'Kepadatan',
-                        value: generalStatus,
-                        valueColor: generalStatus == "Macet"
-                            ? Colors.red
-                            : Colors.orange,
-                        icon: Icons.traffic),
-                    SummaryCard(
-                        title: 'Peringatan',
-                        value: '$totalWarnings',
-                        valueColor:
-                            totalWarnings > 0 ? Colors.red : Colors.green,
-                        icon: totalWarnings > 0
-                            ? Icons.warning
-                            : Icons.check_circle),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal:
+                          16), // Padding luar kiri & kanan agar tidak menempel pinggir
+                  child: Row(
+                    children: [
+                      // KARTU 1: TOTAL KENDARAAN
+                      Expanded(
+                        child: SummaryCard(
+                          title: 'Total',
+                          value: numberFormat.format(grandTotalHariIni),
+                          valueColor: Colors.green,
+                          icon: Icons.directions_car,
+                        ),
+                      ),
+
+                      const SizedBox(
+                          width:
+                              12), // MEMBERIKAN JARAK ANTAR KARTU (AGAR TIDAK MEPET)
+
+                      // KARTU 2: KEPADATAN
+                      Expanded(
+                        child: SummaryCard(
+                          title: 'Kepadatan',
+                          value: generalStatus,
+                          valueColor: generalStatus == "Macet"
+                              ? Colors.red
+                              : (generalStatus == "Padat"
+                                  ? Colors.orange
+                                  : Colors.green),
+                          icon: Icons.traffic,
+                        ),
+                      ),
+
+                      const SizedBox(
+                          width:
+                              12), // MEMBERIKAN JARAK ANTAR KARTU (AGAR TIDAK MEPET)
+
+                      // KARTU 3: PERINGATAN
+                      Expanded(
+                        child: SummaryCard(
+                          title: 'Peringatan',
+                          value: '${_activeWarnings.length}',
+                          valueColor: _activeWarnings.isNotEmpty
+                              ? Colors.red
+                              : Colors.green,
+                          icon: _activeWarnings.isNotEmpty
+                              ? Icons.warning
+                              : Icons.check_circle,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 24),
 
                 // 3. PETA
                 _buildMapSection(context, [
@@ -1007,6 +1021,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const TextStyle(fontSize: 10, color: Colors.white54)))),
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+    );
+  }
+}
+
+// Letakkan ini di bagian paling bawah file, di luar class utama
+class SummaryCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final Color valueColor;
+  final IconData icon;
+
+  const SummaryCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.valueColor,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2C),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(
+        // 1. MEMBUAT COLUMN RATA TENGAH
+        crossAxisAlignment: CrossAxisAlignment.center, 
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center, // Rata tengah teks judul
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            // 2. MEMBUAT ISI ROW (ICON & ANGKA) RATA TENGAH
+            mainAxisAlignment: MainAxisAlignment.center, 
+            children: [
+              Icon(icon, color: valueColor, size: 16),
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center, // Rata tengah saat angka mengecil
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: valueColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

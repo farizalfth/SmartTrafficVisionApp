@@ -491,15 +491,22 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // --- PERBAIKAN HEADER: Menggunakan Expanded agar tidak overflow ---
+            Row(
               children: [
-                Text('Volume CCTV Tertinggi (Hari Ini)',
-                    style: TextStyle(
+                Expanded(
+                  child: Text(
+                    'Volume CCTV Tertinggi (Hari Ini)',
+                    style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white)),
-                Icon(Icons.emoji_events, color: Colors.amber),
+                        color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis, // Potong teks jika terlalu panjang
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.emoji_events, color: Colors.amber),
               ],
             ),
             const SizedBox(height: 16),
@@ -528,6 +535,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 10.0),
                     child: Row(
                       children: [
+                        // Lingkaran Angka Peringkat
                         Container(
                           width: 30,
                           height: 30,
@@ -551,6 +559,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                           : Colors.grey))),
                         ),
                         const SizedBox(width: 16),
+                        // Bagian Nama dan Progress Bar
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,11 +596,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Text('$total',
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white)),
+                        // --- PERBAIKAN ANGKA: Menggunakan FittedBox agar angka besar tidak overflow ---
+                        SizedBox(
+                          width: 60, // Batasi lebar kolom angka
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              '$total',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   );
