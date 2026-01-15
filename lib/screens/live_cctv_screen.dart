@@ -68,22 +68,21 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
   void _initializePlayer(CCTV cctv) {
     final videoId = YoutubePlayer.convertUrlToId(cctv.rstpUrl);
 
-    if (_controller != null) {
-      _controller!.dispose(); // Dispose controller lama sebelum buat baru
-      _controller = null;
-    }
-
     if (videoId != null) {
-      _controller = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
-          mute: false,
-          isLive: true,
-          forceHD: false,
-          enableCaption: false,
-        ),
-      );
+      if (_controller == null) {
+        // Inisialisasi pertama kali
+        _controller = YoutubePlayerController(
+          initialVideoId: videoId,
+          flags: const YoutubePlayerFlags(
+            autoPlay: true,
+            mute: false,
+            isLive: true,
+          ),
+        );
+      } else {
+        // PERINTAH INI yang akan mengganti konten video secara realtime
+        _controller!.load(videoId);
+      }
     }
 
     setState(() {
@@ -190,7 +189,6 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // VIDEO PLAYER CONTAINER
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -206,35 +204,25 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
               ? AspectRatio(
                   aspectRatio: 16 / 9,
                   child: YoutubePlayer(
+                    // PENTING: Key ini memaksa Flutter merender video baru sesuai ID CCTV
+                    key: ValueKey(cctv.id),
                     controller: _controller!,
                     showVideoProgressIndicator: true,
                     progressIndicatorColor: Colors.redAccent,
                     bottomActions: [
                       CurrentPosition(),
                       ProgressBar(
-                          isExpanded: true,
-                          colors: const ProgressBarColors(
-                              playedColor: Colors.red,
-                              handleColor: Colors.redAccent)),
+                        isExpanded: true,
+                        colors: const ProgressBarColors(
+                          playedColor: Colors.red,
+                          handleColor: Colors.redAccent,
+                        ),
+                      ),
                       FullScreenButton(),
                     ],
                   ),
                 )
-              : Container(
-                  height: 200,
-                  width: double.infinity,
-                  color: Colors.black,
-                  child: const Center(
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                        Icon(Icons.videocam_off,
-                            color: Colors.white54, size: 50),
-                        SizedBox(height: 10),
-                        Text("Stream Offline / URL RTSP",
-                            style: TextStyle(color: Colors.white54)),
-                      ])),
-                ),
+              : _buildOfflinePlaceholder(), // Memanggil fungsi di bawah
         ),
         const SizedBox(height: 16),
 
@@ -432,4 +420,25 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
       },
     );
   }
+}
+
+Widget _buildOfflinePlaceholder() {
+  return Container(
+    height: 200,
+    width: double.infinity,
+    color: Colors.black,
+    child: const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.videocam_off, color: Colors.white54, size: 50),
+          SizedBox(height: 10),
+          Text(
+            "Stream Offline / URL RTSP",
+            style: TextStyle(color: Colors.white54),
+          ),
+        ],
+      ),
+    ),
+  );
 }

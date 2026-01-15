@@ -368,7 +368,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
     );
   }
-
+  
   // --- WIDGET CHART (DATA DARI FIREBASE DAILY_REPORTS) ---
   Widget _buildHistoryChart() {
     return Card(
@@ -407,12 +407,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 aspectRatio: 1.3,
                 child: BarChart(
                   BarChartData(
-                    maxY: _maxY,
+                    // 1. TAMBAH HEADROOM: Beri ruang 20% di atas agar angka tertinggi tidak mentok ke atas
+                    maxY: _maxY * 1.2,
                     barGroups: _chartGroups,
                     gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
-                        horizontalInterval: _maxY / 5,
+                        // Buat interval grid yang konsisten
+                        horizontalInterval: _maxY > 0 ? (_maxY / 5) : 1000,
                         getDrawingHorizontalLine: (v) =>
                             FlLine(color: Colors.white10, strokeWidth: 1)),
                     borderData: FlBorderData(show: false),
@@ -425,11 +427,32 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                               showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (val, meta) => Text(
-                                  val.toInt().toString(),
-                                  style: const TextStyle(
-                                      color: Colors.grey, fontSize: 10)))),
+                              reservedSize: 45, // Ukuran kolom angka kiri
+                              getTitlesWidget: (val, meta) {
+                                // 2. HILANGKAN LOGIKA REAL-TIME: Sekarang hanya menampilkan label Grid
+                                if (val == meta.max)
+                                  return const SizedBox(); // Jangan gambar di paling atas agar tidak tumpuk
+
+                                String text = '';
+                                if (val >= 1000) {
+                                  text = '${(val / 1000).toStringAsFixed(0)}k';
+                                } else {
+                                  text = val.toInt().toString();
+                                }
+
+                                return SideTitleWidget(
+                                  axisSide: meta.axisSide,
+                                  space: 10,
+                                  child: Text(
+                                    text,
+                                    style: const TextStyle(
+                                      color: Colors
+                                          .grey, // Semua angka sekarang seragam Abu-abu
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              })),
                       bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                               showTitles: true,
@@ -437,19 +460,22 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               getTitlesWidget: (val, meta) {
                                 if (val.toInt() >= 0 &&
                                     val.toInt() < _dateLabels.length) {
-                                  return Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Text(_dateLabels[val.toInt()],
-                                          style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 10)));
+                                  return SideTitleWidget(
+                                    axisSide: meta.axisSide,
+                                    space: 8,
+                                    child: Text(_dateLabels[val.toInt()],
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 10)),
+                                  );
                                 }
-                                return const Text('');
+                                return const SizedBox();
                               })),
                     ),
                     barTouchData: BarTouchData(
                       touchTooltipData: BarTouchTooltipData(
-                        getTooltipColor: (_) => Colors.blueGrey,
+                        getTooltipColor: (_) =>
+                            Colors.blueGrey.withOpacity(0.9),
                         getTooltipItem: (group, groupIndex, rod, rodIndex) {
                           String date = _dateLabels[group.x.toInt()];
                           return BarTooltipItem(
@@ -460,9 +486,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 fontSize: 12),
                             children: <TextSpan>[
                               TextSpan(
-                                text: rod.toY.toInt().toString(),
+                                text: NumberFormat.decimalPattern('id_ID')
+                                    .format(rod.toY.toInt()),
                                 style: const TextStyle(
-                                    color: Colors.yellowAccent,
+                                    color: Colors.blueAccent,
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold),
                               ),
@@ -502,7 +529,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         fontWeight: FontWeight.bold,
                         color: Colors.white),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis, // Potong teks jika terlalu panjang
+                    overflow: TextOverflow
+                        .ellipsis, // Potong teks jika terlalu panjang
                   ),
                 ),
                 const SizedBox(width: 8),
