@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "110887096124",
+    "firebase_url": "https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "smart-traffic-vision-app",
+    "storage_bucket": "smart-traffic-vision-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:110887096124:android:b305070dc43e5d31cf5839",
+        "android_client_info": {
+          "package_name": "com.example.smarttrafficapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "110887096124-e0255fm6h2fjifkbh9fj0edpj2u5qsor.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smarttrafficapp",
+            "certificate_hash": "f007081a4f18dd047c039faf7b96f3f24b07cfee"
+          }
+        },
+        {
+          "client_id": "110887096124-fp1i93t30kqgmpvgblkka3f78hbbu5r0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCt3KfZDmbywLidmrNLU-Q53DfAG7jPkZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "110887096124-fp1i93t30kqgmpvgblkka3f78hbbu5r0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "110887096124-4ff4bp8av32kb4e13piek8e299oklb6n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.smarttrafficapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

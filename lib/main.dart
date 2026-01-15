@@ -27,6 +27,7 @@ import 'package:intl/date_symbol_data_local.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inisialisasi Firebase menggunakan DefaultFirebaseOptions
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

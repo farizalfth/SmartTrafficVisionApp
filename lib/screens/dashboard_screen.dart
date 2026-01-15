@@ -1,5 +1,6 @@
 // lib/screens/dashboard_screen.dart
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -31,27 +32,46 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  // --- VARIABEL LAMA (TETAP ADA) ---
   final MapController _mapController = MapController();
   final TrafficService _trafficService = TrafficService();
 
   List<Polyline> _routeLines = [];
   List<Marker> _routeMarkers = [];
   Map<String, Map<String, double>> _cctvCongestionData = {};
-
-  // List Peringatan Dinamis (Nanti diisi dari Firebase)
   List<String> _activeWarnings = [];
 
   static const LatLng _initialCenter = LatLng(-7.150975, 110.140259);
   static const double _initialZoom = 8;
 
+  // --- VARIABEL BARU (UNTUK INPUT LAPORAN WARGA) ---
+  late TextEditingController _nameController;
+  late TextEditingController _commentController;
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
+
+    // Inisialisasi Controller
+    _nameController = TextEditingController();
+    _commentController = TextEditingController();
+
+    // Logic Lama
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _generateChartData();
     });
   }
 
+  @override
+  void dispose() {
+    // Hapus controller saat layar ditutup agar hemat memori
+    _nameController.dispose();
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  // --- FUNGSI LAMA (TETAP ADA) ---
   void _generateChartData() {
     final cctvProvider = Provider.of<CCTVDataSource>(context, listen: false);
     final random = Random();
@@ -67,6 +87,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
         };
       });
+    }
+  }
+
+  // --- FUNGSI BARU (KIRIM LAPORAN KE FIREBASE) ---
+  Future<void> _submitReport() async {
+    if (_nameController.text.isEmpty || _commentController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Nama dan Komentar harus diisi!")));
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // TAMBAHKAN URL DATABASE SECARA EKSPLISIT DI SINI
+      final String databaseUrl =
+          "https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app";
+      final dbRef = FirebaseDatabase.instanceFor(
+              app: Firebase.app(), databaseURL: databaseUrl)
+          .ref('user_comments');
+
+      DateTime now = DateTime.now();
+      String dateStr = DateFormat('yyyy-MM-dd').format(now);
+      String timeStr = DateFormat('HH:mm:ss').format(now);
+      String dayStr = DateFormat('EEEE', 'id_ID').format(now);
+
+      await dbRef.push().set({
+        'nama': _nameController.text,
+        'komentar': _commentController.text,
+        'tanggal': dateStr,
+        'jam': timeStr,
+        'hari': dayStr,
+        'timestamp': ServerValue.timestamp,
+        'sentimen': 'Netral',
+      });
+
+      _nameController.clear();
+      _commentController.clear();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Laporan berhasil dikirim!")));
+      }
+    } catch (e) {
+      if (mounted) {
+        // Menampilkan pesan error yang lebih bersih
+        debugPrint("Firebase Error: $e");
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Gagal mengirim laporan. Pastikan koneksi stabil.")));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -190,11 +262,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
           int grandTotalHariIni = 0;
           String generalStatus = "Lancar";
-
-          // Reset list peringatan setiap ada data baru
           _activeWarnings = [];
 
-          // --- LOGIKA PARSING (TIDAK BERUBAH) ---
+          // Map baru untuk menampung statistik detail per CCTV untuk Grafik
+          Map<String, Map<String, dynamic>> cctvStatsMap = {};
+
           if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
             try {
               final rawData = snapshot.data!.snapshot.value;
@@ -203,36 +275,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (value is Map) {
                   int cctvTotal = 0;
                   String status = "Lancar";
+                  int density = 0;
+                  String duration = "-";
                   String cctvName = "CCTV $key";
 
                   try {
                     final cctv = cctvList.firstWhere((c) => c.id == key);
                     cctvName = cctv.name;
-                  } catch (e) {/*ignore*/}
+                  } catch (e) {}
 
                   if (value.containsKey('live') && value['live'] is Map) {
                     final liveData = value['live'] as Map;
 
-                    if (liveData.containsKey('total_akumulasi_hari_ini')) {
-                      cctvTotal = int.tryParse(
-                              liveData['total_akumulasi_hari_ini']
-                                  .toString()) ??
-                          0;
-                    } else {
-                      cctvTotal =
-                          int.tryParse(liveData['total']?.toString() ?? '0') ??
-                              0;
-                    }
+                    // 1. Ambil Total Akumulasi (Data Hari Ini)
+                    cctvTotal = int.tryParse(
+                            liveData['total_akumulasi_hari_ini']?.toString() ??
+                                '0') ??
+                        0;
 
+                    // 2. Ambil Status (Real-time)
                     status = liveData['status']?.toString() ?? 'Lancar';
+
+                    // 3. Ambil Kepadatan (Sesuaikan Key: kepadatan_persen)
+                    density = int.tryParse(
+                            liveData['kepadatan_persen']?.toString() ?? '0') ??
+                        0;
+
+                    // 4. Ambil Durasi (Sesuaikan Key: session_duration)
+                    duration =
+                        liveData['session_duration']?.toString() ?? "Aktif";
                   }
 
                   grandTotalHariIni += cctvTotal;
 
+                  // Masukkan ke Map untuk Grafik (Jangan dihapus)
+                  cctvStatsMap[key] = {
+                    'density': density,
+                    'duration': duration,
+                    'status': status,
+                  };
+
+                  // --- LOGIKA NOTIFIKASI & STATUS UMUM ---
                   if (status.toLowerCase().contains('macet')) {
                     generalStatus = "Macet";
-                    _activeWarnings.add("Kepadatan Tinggi di $cctvName");
-                  } else if (status.toLowerCase().contains('padat')) {
+
+                    // Ambil waktu saat ini secara real-time
+                    DateTime now = DateTime.now();
+                    String dayStr =
+                        DateFormat('EEEE', 'id_ID').format(now); // Contoh: Rabu
+                    String dateStr = DateFormat('dd MMMM yyyy', 'id_ID')
+                        .format(now); // Contoh: 15 Januari 2026
+                    String timeStr =
+                        DateFormat('HH:mm:ss').format(now); // Contoh: 07:15:30
+
+                    // Masukkan informasi lengkap ke list peringatan
+                    _activeWarnings.add(
+                        "Kepadatan Tinggi di $cctvName\n$dayStr, $dateStr | Pukul $timeStr WIB");
+                  }
+                  // Tambahkan ini agar Summary Card "Kepadatan" di atas tetap berfungsi
+                  else if (status.toLowerCase().contains('padat')) {
                     if (generalStatus != "Macet") generalStatus = "Padat";
                   }
                 }
@@ -364,18 +465,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // 3. PETA
                 _buildMapSection(context, [
-                  ...cctvList.map((c) => _buildCCTVMarker(context, c)).toList(),
+                  // Tambahkan parameter cctvStatsMap[c.id] agar fungsi tahu status trafik tiap CCTV
+                  ...cctvList
+                      .map((c) =>
+                          _buildCCTVMarker(context, c, cctvStatsMap[c.id]))
+                      .toList(),
                   ..._routeMarkers
                 ]),
                 const SizedBox(height: 24),
 
-                // 4. LIVE FEED
-                _buildLiveFeedList(context, cctvList),
+                // 4. GRAFIK KENDARAAN (LIVE METRICS)
+                _buildCongestionTrendChartsPerCCTV(
+                  context,
+                  cctvList,
+                  cctvStatsMap, // Gunakan Map ini agar Real-time mengikuti Firebase
+                ),
                 const SizedBox(height: 24),
 
-                // 5. GRAFIK
-                _buildCongestionTrendChartsPerCCTV(context, cctvList),
-                const SizedBox(height: 20),
+                // 5. INPUT LAPORAN WARGA (POSISI DI BAWAH)
+                _buildCitizenReportInput(),
               ],
             ),
           );
@@ -444,8 +552,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Marker _buildCCTVMarker(BuildContext context, CCTV cctv) {
+  Marker _buildCCTVMarker(
+      BuildContext context, CCTV cctv, Map<String, dynamic>? trafficData) {
+    // Ambil status dari data real-time, default ke 'lancar' jika data belum ada
+    String status =
+        trafficData?['status']?.toString().toLowerCase() ?? 'lancar';
     bool isOnline = cctv.status.toLowerCase() == 'online';
+
+    // Logika Warna:
+    Color markerColor = Colors.green; // Default: Lancar / Hijau
+
+    if (!isOnline) {
+      markerColor = Colors.grey; // Abu-abu jika CCTV mati
+    } else if (status.contains('macet')) {
+      markerColor = Colors.red; // Merah jika Macet
+    } else if (status.contains('padat')) {
+      markerColor = Colors.orange; // Oranye jika Padat
+    }
+
     return Marker(
       point: LatLng(cctv.latitude, cctv.longitude),
       width: 60,
@@ -456,8 +580,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             MaterialPageRoute(
                 builder: (context) => LiveCCTVScreen(initialCCTVId: cctv.id))),
         child: Column(children: [
-          Icon(Icons.location_on,
-              size: 40, color: isOnline ? Colors.green : Colors.red),
+          // Icon marker menggunakan warna dinamis
+          Icon(Icons.location_on, size: 40, color: markerColor),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
@@ -472,130 +596,230 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLiveFeedList(BuildContext context, List<CCTV> cctvList) {
+  // --- WIDGET INPUT LAPORAN WARGA ---
+  Widget _buildCitizenReportInput() {
     return Card(
       color: Theme.of(context).cardColor,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Live Feed CCTV Utama',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              const Icon(Icons.videocam_outlined, color: Colors.redAccent),
-            ]),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Laporan Warga',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+                Icon(Icons.report, color: Colors.redAccent),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text("Laporkan kondisi lalu lintas terkini di sekitar Anda.",
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: 'Nama Pelapor',
+                prefixIcon: const Icon(Icons.person, color: Colors.blueAccent),
+                filled: true,
+                fillColor: const Color(0xFF1E1E1E),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none),
+              ),
+            ),
             const SizedBox(height: 12),
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Kondisi Lalu Lintas (Komentar)',
+                alignLabelWithHint: true,
+                prefixIcon: const Padding(
+                    padding: EdgeInsets.only(bottom: 40),
+                    child: Icon(Icons.comment, color: Colors.orangeAccent)),
+                filled: true,
+                fillColor: const Color(0xFF1E1E1E),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 20),
             SizedBox(
-                height: 140,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: cctvList.length,
-                  itemBuilder: (context, index) {
-                    final cctv = cctvList[index];
-                    String? videoId =
-                        YoutubePlayer.convertUrlToId(cctv.rstpUrl);
-                    String thumbnailUrl = videoId != null
-                        ? 'https://img.youtube.com/vi/$videoId/mqdefault.jpg'
-                        : 'https://via.placeholder.com/150';
-                    return Container(
-                        width: 180,
-                        margin: const EdgeInsets.only(right: 12),
-                        child: CCTVCFeedThumbnail(
-                          cctvId: cctv.id,
-                          location: cctv.location,
-                          imageUrl: thumbnailUrl,
-                          congestionLevel: cctv.status.toLowerCase() == 'online'
-                              ? 'Aktif'
-                              : 'Offline',
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) =>
-                                      LiveCCTVScreen(initialCCTVId: cctv.id))),
-                        ));
-                  },
-                )),
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _submitReport,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send),
+                label: Text(_isSubmitting ? "Mengirim..." : "Kirim Laporan"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCongestionTrendChartsPerCCTV(
-      BuildContext context, List<CCTV> cctvList) {
+  // --- GRAFIK KENDARAAN (DATA REAL DARI FIREBASE) ---
+  Widget _buildCongestionTrendChartsPerCCTV(BuildContext context,
+      List<CCTV> cctvList, Map<String, Map<String, dynamic>> stats) {
     return Card(
-        color: Theme.of(context).cardColor,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Tren Kepadatan per CCTV',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const Icon(Icons.bar_chart, color: Colors.orangeAccent),
-              ]),
-              const SizedBox(height: 12),
-              SizedBox(
-                  height: 220,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: cctvList.length,
-                    itemBuilder: (context, index) {
-                      final cctv = cctvList[index];
-                      final data = _cctvCongestionData[cctv.id] ??
-                          {
-                            'Hari Ini': 0.5,
-                            'Minggu Ini': 0.6,
-                            'Bulan Ini': 0.55
-                          };
-                      return Container(
-                        width: 280,
-                        margin: const EdgeInsets.only(right: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white10)),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(cctv.name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                  overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 12),
-                              Expanded(
-                                  child: BarChart(BarChartData(
-                                barGroups: createBarGroups(data),
-                                titlesData: buildAxesTitles(),
-                                gridData: FlGridData(
-                                    show: true,
-                                    drawVerticalLine: false,
-                                    getDrawingHorizontalLine: (v) => FlLine(
-                                        color: Colors.white10, strokeWidth: 1)),
-                                borderData: FlBorderData(show: false),
-                                maxY: 1.0,
-                                barTouchData: BarTouchData(
-                                    touchTooltipData: BarTouchTooltipData(
-                                        getTooltipColor: (_) =>
-                                            Colors.blueGrey)),
-                              ))),
+      color: Theme.of(context).cardColor,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Status Kepadatan Terkini',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              Icon(Icons.bar_chart, color: Colors.orangeAccent),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 230, // Sedikit ditambah tingginya agar angka tidak mepet
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: cctvList.length,
+              itemBuilder: (context, index) {
+                final cctv = cctvList[index];
+                final data = stats[cctv.id] ??
+                    {'density': 0, 'duration': '-', 'status': 'Offline'};
+
+                int density = int.tryParse(data['density'].toString()) ?? 0;
+                String duration = data['duration']?.toString() ?? '-';
+                String status = data['status']?.toString() ?? 'Lancar';
+
+                Color barColor = Colors.green;
+                if (density > 70)
+                  barColor = Colors.red;
+                else if (density > 40) barColor = Colors.orange;
+
+                return Container(
+                  width: 180,
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white10)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(cctv.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 11),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 8),
+
+                      _buildSmallInfoRow("Durasi:", duration, Colors.white),
+                      _buildSmallInfoRow("Status:", status, barColor),
+
+                      const SizedBox(height: 12),
+
+                      // --- TAMBAHKAN ANGKA PERSENTASE DI SINI ---
+                      Center(
+                        child: Text(
+                          "$density%",
+                          style: TextStyle(
+                              color: barColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Grafik Batang Kepadatan
+                      Expanded(
+                        child: BarChart(BarChartData(
+                          maxY: 100,
+                          barGroups: [
+                            BarChartGroupData(x: 0, barRods: [
+                              BarChartRodData(
+                                  toY: density.toDouble(),
+                                  color: barColor,
+                                  width: 35,
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(6)),
+                                  backDrawRodData: BackgroundBarChartRodData(
+                                      show: true,
+                                      toY: 100,
+                                      color: Colors.white10))
                             ]),
-                      );
-                    },
-                  )),
-            ])));
+                          ],
+                          gridData: const FlGridData(show: false),
+                          borderData: FlBorderData(show: false),
+                          titlesData: FlTitlesData(
+                            bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (v, m) => const Text(
+                                        '% Kepadatan',
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey)))),
+                            leftTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                          ),
+                        )),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          )
+        ]),
+      ),
+    );
+  }
+
+// Widget pembantu untuk merapikan teks (Diletakkan di dalam class _DashboardScreenState)
+  Widget _buildSmallInfoRow(String label, String value, Color valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+          Text(value,
+              style: TextStyle(
+                  color: valueColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
   }
 
   Future<void> _showRoutePlanningDialog(BuildContext context) async {

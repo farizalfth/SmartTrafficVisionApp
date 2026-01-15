@@ -41,6 +41,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '110887096124',
     projectId: 'smart-traffic-vision-app',
     authDomain: 'smart-traffic-vision-app.firebaseapp.com',
+    databaseURL: 'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'smart-traffic-vision-app.firebasestorage.app',
     measurementId: 'G-DMBEFDLYZ2',
   );
@@ -50,6 +51,7 @@ class DefaultFirebaseOptions {
     appId: '1:110887096124:android:b305070dc43e5d31cf5839',
     messagingSenderId: '110887096124',
     projectId: 'smart-traffic-vision-app',
+    databaseURL: 'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'smart-traffic-vision-app.firebasestorage.app',
   );
 
@@ -58,6 +60,7 @@ class DefaultFirebaseOptions {
     appId: '1:110887096124:ios:67f0efb284a9cd5dcf5839',
     messagingSenderId: '110887096124',
     projectId: 'smart-traffic-vision-app',
+    databaseURL: 'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'smart-traffic-vision-app.firebasestorage.app',
     androidClientId: '110887096124-e0255fm6h2fjifkbh9fj0edpj2u5qsor.apps.googleusercontent.com',
     iosClientId: '110887096124-4ff4bp8av32kb4e13piek8e299oklb6n.apps.googleusercontent.com',
