@@ -79,7 +79,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           icon: const Icon(Icons.menu),
           onPressed: () {
             // Membuka Sidebar/Drawer dari MainScreen
-            Scaffold.of(context).openDrawer(); 
+            Scaffold.of(context).openDrawer();
           },
         ),
       ),
@@ -307,100 +307,145 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // --- DIALOG EDIT PROFIL ---
   Future<void> _showEditProfileDialog(
       BuildContext context, AuthService authService) async {
-    final user = authService.currentUser!;
-    final nameController = TextEditingController(text: user.username);
-    final emailController = TextEditingController(text: user.email);
+    final nameController =
+        TextEditingController(text: authService.currentUser!.username);
+    final emailController =
+        TextEditingController(text: authService.currentUser!.email);
 
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          contentPadding: const EdgeInsets.all(20),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("Edit Profil",
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
+        return Consumer<AuthService>(
+          builder: (context, auth, child) {
+            final user = auth.currentUser!;
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              contentPadding: const EdgeInsets.all(20),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("Edit Profil",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 25),
 
-              // Foto di Dialog juga bisa diklik
-              GestureDetector(
-                onTap: () {
-                  authService.pickNewProfileImage();
-                  // Tidak perlu setState manual di sini karena AuthService notifyListeners
-                  // akan merebuild parent, tapi dialog mungkin perlu ditutup buka ulang
-                  // atau dibiarkan saja karena foto utama di belakang sudah ganti.
-                },
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.grey[800],
-                        backgroundImage: _getImageProvider(user)),
-                    Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                            color: Colors.blueAccent, shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt,
-                            color: Colors.white, size: 18)),
-                  ],
-                ),
+                  // FOTO PROFIL (BERSIH TANPA LOGO MENEMPEL)
+                  CircleAvatar(
+                      radius: 55,
+                      backgroundColor: Colors.grey[800],
+                      backgroundImage: _getImageProvider(user)),
+
+                  const SizedBox(height: 15),
+
+                  // BARIS TOMBOL AKSI (DI BAWAH FOTO)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Tombol Ganti Foto
+                      _buildPhotoButton(
+                        icon: Icons.camera_alt,
+                        label: "Ganti",
+                        color: Colors.blueAccent,
+                        onTap: () => auth.pickNewProfileImage(),
+                      ),
+
+                      // Jarak antar tombol
+                      if (user.webImageBytes != null ||
+                          !user.profilePictureUrl.contains('default_avatar'))
+                        const SizedBox(width: 20),
+
+                      // Tombol Hapus Foto (Muncul hanya jika foto bukan default)
+                      if (user.webImageBytes != null ||
+                          !user.profilePictureUrl.contains('default_avatar'))
+                        _buildPhotoButton(
+                          icon: Icons.delete_forever,
+                          label: "Hapus",
+                          color: Colors.redAccent,
+                          onTap: () => auth.removeProfileImage(),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 25),
+                  TextField(
+                      controller: nameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Nama Lengkap",
+                          prefixIcon: Icon(Icons.person, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26)),
+                  const SizedBox(height: 15),
+                  TextField(
+                      controller: emailController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Email",
+                          prefixIcon: Icon(Icons.email, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26)),
+                ],
               ),
-
-              const SizedBox(height: 20),
-              TextField(
-                  controller: nameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                      labelText: "Nama Lengkap",
-                      prefixIcon: Icon(Icons.person, color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.black26)),
-              const SizedBox(height: 15),
-              TextField(
-                  controller: emailController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                      labelText: "Email",
-                      prefixIcon: Icon(Icons.email, color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.black26)),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child:
-                    const Text("Batal", style: TextStyle(color: Colors.grey))),
-            ElevatedButton(
-              onPressed: () {
-                authService.updateUserData(
-                    nameController.text, emailController.text);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text("Profil berhasil diperbarui"),
-                    backgroundColor: Colors.green));
-              },
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white),
-              child: const Text("Simpan"),
-            ),
-          ],
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Batal",
+                        style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                  onPressed: () {
+                    auth.updateUserData(
+                        nameController.text, emailController.text);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Profil berhasil diperbarui"),
+                        backgroundColor: Colors.green));
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white),
+                  child: const Text("Simpan"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  // --- DIALOG GANTI PASSWORD ---
+  // Widget Helper untuk membuat tombol di bawah foto agar rapi
+  Widget _buildPhotoButton(
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withOpacity(0.5))),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG GANTI PASSWORD (UPDATE) ---
   Future<void> _showChangePasswordDialog(BuildContext context) async {
     final oldPassController = TextEditingController();
     final newPassController = TextEditingController();
@@ -473,14 +518,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: const Text("Batal", style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                // Tambahkan async di sini
                 if (formKey.currentState!.validate()) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text("Password berhasil diubah!"),
-                        backgroundColor: Colors.green),
-                  );
+                  // 1. AMBIL AKSES KE AUTHSERVICE
+                  final authService =
+                      Provider.of<AuthService>(context, listen: false);
+
+                  // 2. PANGGIL FUNGSI CHANGEPASSWORD
+                  String? error = await authService.changePassword(
+                      oldPassController.text, newPassController.text);
+
+                  if (error == null) {
+                    // Jika berhasil (error null)
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text("Password berhasil diubah!"),
+                          backgroundColor: Colors.green),
+                    );
+                  } else {
+                    // Jika password lama salah (error ada isinya)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(error), backgroundColor: Colors.red),
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
