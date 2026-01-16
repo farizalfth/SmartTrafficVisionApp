@@ -392,9 +392,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ],
             ),
             const SizedBox(height: 10),
-            const Text("Data berdasarkan 'daily_reports' Firebase",
-                style: TextStyle(color: Colors.grey, fontSize: 10)),
-            const SizedBox(height: 30),
             if (_chartGroups.isEmpty)
               const SizedBox(
                 height: 200,

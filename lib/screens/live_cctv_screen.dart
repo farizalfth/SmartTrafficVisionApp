@@ -1,32 +1,33 @@
 // lib/screens/live_cctv_screen.dart
 
-// ignore_for_file: curly_braces_in_flow_control_structures
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'package:smarttrafficapp/models/cctv.dart';
 import 'package:smarttrafficapp/data/cctv_data_source.dart';
 
 class LiveCCTVScreen extends StatefulWidget {
   final String? initialCCTVId;
-
   const LiveCCTVScreen({super.key, this.initialCCTVId});
 
   @override
   State<LiveCCTVScreen> createState() => _LiveCCTVScreenState();
 }
 
-class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
+// Tambahkan TickerProviderStateMixin untuk animasi
+class _LiveCCTVScreenState extends State<LiveCCTVScreen>
+    with TickerProviderStateMixin {
   YoutubePlayerController? _controller;
   CCTV? _selectedCCTV;
-  String _searchQuery = '';
   bool _isInit = true;
 
-  // --- DATABASE ---
+  // Controller untuk animasi rotasi diagram
+  late AnimationController _rotationController;
+
   static const String _dbUrl =
       'https://smart-traffic-vision-app-default-rtdb.asia-southeast1.firebasedatabase.app/';
   late final DatabaseReference _trafficStatsRef;
@@ -34,13 +35,16 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
   @override
   void initState() {
     super.initState();
-    // Inisialisasi Database Spesifik Region
     final firebaseApp = Firebase.app();
     final rtdb =
         FirebaseDatabase.instanceFor(app: firebaseApp, databaseURL: _dbUrl);
-
-    // Arahkan ke 'traffic_stats'
     _trafficStatsRef = rtdb.ref('traffic_stats');
+
+    // Inisialisasi animasi rotasi (berputar penuh setiap 15 detik)
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15),
+    )..repeat(); // Membuatnya berputar terus menerus
   }
 
   @override
@@ -48,51 +52,50 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
     super.didChangeDependencies();
     if (_isInit) {
       final dataProvider = Provider.of<CCTVDataSource>(context, listen: false);
-      if (dataProvider.cctvList.isNotEmpty) {
-        if (widget.initialCCTVId != null) {
-          try {
-            _selectedCCTV = dataProvider.cctvList
-                .firstWhere((c) => c.id == widget.initialCCTVId);
-          } catch (e) {
-            _selectedCCTV = dataProvider.cctvList.first;
-          }
-        } else {
-          _selectedCCTV = dataProvider.cctvList.first;
+      if (widget.initialCCTVId != null) {
+        try {
+          final foundCCTV = dataProvider.cctvList
+              .firstWhere((c) => c.id == widget.initialCCTVId);
+          _initializePlayer(foundCCTV);
+        } catch (e) {
+          debugPrint("ID CCTV tidak ditemukan");
         }
-        _initializePlayer(_selectedCCTV!);
       }
       _isInit = false;
     }
   }
 
+  // FIX: Logika pindah video agar tidak tertukar
   void _initializePlayer(CCTV cctv) {
     final videoId = YoutubePlayer.convertUrlToId(cctv.rstpUrl);
 
     if (videoId != null) {
-      if (_controller == null) {
-        // Inisialisasi pertama kali
+      // WAJIB: Hapus controller lama agar memori bersih dan video benar-benar ganti
+      if (_controller != null) {
+        _controller!.pause();
+        _controller!.dispose();
+        _controller = null;
+      }
+
+      setState(() {
+        _selectedCCTV = cctv;
         _controller = YoutubePlayerController(
           initialVideoId: videoId,
           flags: const YoutubePlayerFlags(
             autoPlay: true,
             mute: false,
             isLive: true,
+            forceHD: false,
           ),
         );
-      } else {
-        // PERINTAH INI yang akan mengganti konten video secara realtime
-        _controller!.load(videoId);
-      }
+      });
     }
-
-    setState(() {
-      _selectedCCTV = cctv;
-    });
   }
 
   @override
   void dispose() {
     _controller?.dispose();
+    _rotationController.dispose();
     super.dispose();
   }
 
@@ -100,7 +103,7 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Live CCTV'),
+        title: const Text('Live CCTV Streaming'),
         backgroundColor: Colors.transparent,
         elevation: 0,
 
@@ -116,67 +119,21 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
       body: Consumer<CCTVDataSource>(
         builder: (context, dataSource, child) {
           final allCCTVs = dataSource.cctvList;
-
-          if (allCCTVs.isEmpty)
-            return const Center(child: Text("Belum ada data CCTV."));
-
-          final filteredList = allCCTVs.where((cctv) {
-            final matchesSearch =
-                cctv.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                    cctv.location
-                        .toLowerCase()
-                        .contains(_searchQuery.toLowerCase());
-            final isNotPlaying = cctv.id != _selectedCCTV?.id;
-            return matchesSearch && isNotPlaying;
-          }).toList();
-
-          // Safety check jika CCTV terpilih hilang dari list
-          if (_selectedCCTV != null &&
-              !allCCTVs.any((c) => c.id == _selectedCCTV!.id)) {
-            if (allCCTVs.isNotEmpty) {
-              _initializePlayer(allCCTVs.first);
-            } else {
-              _selectedCCTV = null;
-              _controller = null;
-            }
-          }
-
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_selectedCCTV != null)
-                  _buildMainPlayerArea(context, _selectedCCTV!),
+                const Text("Pilih Lokasi Pemantauan:",
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 10),
+                _buildDropdownSelector(allCCTVs),
                 const SizedBox(height: 24),
-                Text('CCTV Lainnya',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                TextField(
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Cari lokasi atau nama CCTV...',
-                    hintStyle: TextStyle(color: Colors.grey[400]),
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none),
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                  ),
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                ),
-                const SizedBox(height: 16),
-                if (filteredList.isEmpty && _searchQuery.isNotEmpty)
-                  const Center(
-                      child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: Text("Tidak ditemukan CCTV yang cocok.",
-                              style: TextStyle(color: Colors.grey))))
+                if (_selectedCCTV != null && _controller != null)
+                  _buildMainPlayerArea(context, _selectedCCTV!)
                 else
-                  _buildCCTVGrid(filteredList),
+                  _buildEmptyState(),
               ],
             ),
           );
@@ -185,260 +142,287 @@ class _LiveCCTVScreenState extends State<LiveCCTVScreen> {
     );
   }
 
+  // FIX: Dropdown agar teks panjang otomatis turun baris (Wrap)
+  Widget _buildDropdownSelector(List<CCTV> list) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<CCTV>(
+          isExpanded: true,
+          hint: const Text("Sentuh untuk memilih lokasi..."),
+          value: _selectedCCTV,
+          icon: const Icon(Icons.arrow_drop_down_circle,
+              color: Colors.blueAccent),
+          // Menggunakan selectedItemBuilder agar teks di baris utama dropdown bisa dibungkus
+          selectedItemBuilder: (BuildContext context) {
+            return list.map<Widget>((item) {
+              return Container(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  item.name,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList();
+          },
+          items: list.map((item) {
+            return DropdownMenuItem<CCTV>(
+              value: item,
+              child: Text(item.name,
+                  softWrap: true, style: const TextStyle(fontSize: 14)),
+            );
+          }).toList(),
+          onChanged: (newValue) =>
+              newValue != null ? _initializePlayer(newValue) : null,
+        ),
+      ),
+    );
+  }
+
   Widget _buildMainPlayerArea(BuildContext context, CCTV cctv) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // FIX: Container dengan Unique Key agar video benar-benar di-refresh sistem
         Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4))
-            ],
-          ),
+          key: ValueKey("vid_player_${cctv.id}"),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
-          child: _controller != null
-              ? AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: YoutubePlayer(
-                    // PENTING: Key ini memaksa Flutter merender video baru sesuai ID CCTV
-                    key: ValueKey(cctv.id),
-                    controller: _controller!,
-                    showVideoProgressIndicator: true,
-                    progressIndicatorColor: Colors.redAccent,
-                    bottomActions: [
-                      CurrentPosition(),
-                      ProgressBar(
-                        isExpanded: true,
-                        colors: const ProgressBarColors(
-                          playedColor: Colors.red,
-                          handleColor: Colors.redAccent,
-                        ),
-                      ),
-                      FullScreenButton(),
-                    ],
-                  ),
-                )
-              : _buildOfflinePlaceholder(), // Memanggil fungsi di bawah
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: YoutubePlayer(
+              controller: _controller!,
+              showVideoProgressIndicator: true,
+              progressIndicatorColor: Colors.redAccent,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
 
-        // INFO CARD DENGAN DATA FIREBASE REALTIME
-        Card(
-          color: Theme.of(context).cardColor,
-          elevation: 2,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        StreamBuilder(
+          stream: _trafficStatsRef.child(cctv.id).onValue,
+          builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+            String status = "Lancar";
+            String total = "0";
+            Map detail = {"mobil": 0, "motor": 0, "bus": 0, "truk": 0};
+
+            if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+              final data = snapshot.data!.snapshot.value as Map;
+              final live = data['live'] as Map?;
+              if (live != null) {
+                status = live['status']?.toString() ?? "Lancar";
+                total = live['total_akumulasi_hari_ini']?.toString() ?? "0";
+                final d = live['detail'] as Map?;
+                if (d != null) detail = d;
+              }
+            }
+
+            return Column(
               children: [
-                Text(cctv.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.location_on,
-                      color: Colors.blueAccent, size: 14),
-                  const SizedBox(width: 4),
-                  Expanded(
-                      child: Text(cctv.location,
-                          style: const TextStyle(color: Colors.white70),
-                          overflow: TextOverflow.ellipsis)),
-                ]),
-                const SizedBox(height: 12),
-
-                // --- STREAM BUILDER KHUSUS ID CCTV INI ---
-                StreamBuilder(
-                    stream: _trafficStatsRef
-                        .child(cctv.id)
-                        .onValue, // Mengambil data berdasarkan ID (misal: "3", "4")
-                    builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                      String status = "Online";
-                      String countText = "0";
-                      String densityText = "Normal";
-
-                      if (snapshot.hasData &&
-                          snapshot.data!.snapshot.value != null) {
-                        try {
-                          final rawValue = snapshot.data!.snapshot.value;
-
-                          // PARSING DATA PINTAR (Langsung atau Nested 'live')
-                          if (rawValue is Map) {
-                            if (rawValue.containsKey('live')) {
-                              // Struktur ID 4: { live: { total: 6, status: "Lancar" } }
-                              final liveData = rawValue['live'] as Map;
-                              countText = liveData['total_akumulasi_hari_ini']
-                                      ?.toString() ??
-                                  "0";
-                              densityText =
-                                  liveData['status']?.toString() ?? "Normal";
-                            } else {
-                              // Struktur ID 3: { total: 2, status: "Lancar" }
-                              countText = rawValue['total_akumulasi_hari_ini']
-                                      ?.toString() ??
-                                  "0";
-                              densityText =
-                                  rawValue['status']?.toString() ?? "Normal";
-                            }
-                          }
-
-                          // Update status visual berdasarkan teks dari firebase
-                          if (densityText.toLowerCase().contains("macet")) {
-                            status = "Macet";
-                          } else if (densityText
-                              .toLowerCase()
-                              .contains("padat")) status = "Padat";
-                        } catch (e) {
-                          debugPrint("Error parsing detail CCTV: $e");
-                        }
-                      }
-
-                      Color statusColor = Colors.green;
-                      if (status == "Macet") statusColor = Colors.red;
-                      if (status == "Padat") statusColor = Colors.orange;
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // BADGE STATUS
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: statusColor)),
-                            child: Text("Status: $status",
-                                style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12)),
-                          ),
-                          // DETAIL KENDARAAN
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text("Kepadatan: $densityText",
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: status == "Macet"
-                                          ? Colors.redAccent
-                                          : Colors.white70)),
-                              Text("Jumlah Kendaraan: $countText",
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
-                            ],
-                          )
-                        ],
-                      );
-                    })
+                _buildStatusCard(cctv, status, total),
+                const SizedBox(height: 16),
+                _buildDistributionCard(detail),
               ],
-            ),
-          ),
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _buildCCTVGrid(List<CCTV> list) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.85),
-      itemCount: list.length,
-      itemBuilder: (context, index) {
-        final item = list[index];
-        return GestureDetector(
-          onTap: () => _initializePlayer(item),
-          child: Card(
-            color: Theme.of(context).cardColor,
-            elevation: 3,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(12)),
-                      color: Colors.black26),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.9),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.red.withOpacity(0.4),
-                                blurRadius: 10,
-                                spreadRadius: 2)
-                          ]),
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 32),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Colors.white),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text(item.location,
-                          style:
-                              TextStyle(color: Colors.grey[400], fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ]),
-              ),
+  Widget _buildStatusCard(CCTV cctv, String status, String total) {
+    return Card(
+      color: Theme.of(context).cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(cctv.name,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Row(children: [
+              const Icon(Icons.location_pin, color: Colors.redAccent, size: 16),
+              const SizedBox(width: 4),
+              Text(cctv.location,
+                  style: const TextStyle(color: Colors.white70)),
             ]),
-          ),
-        );
-      },
+            const Divider(height: 30, color: Colors.white12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildInfoItem("Kondisi Lalu Lintas", status, isStatus: true),
+                _buildInfoItem("Total Kendaraan", total),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
-}
 
-Widget _buildOfflinePlaceholder() {
-  return Container(
-    height: 200,
-    width: double.infinity,
-    color: Colors.black,
-    child: const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  // FIX: DIAGRAM LINGKARAN DENGAN ANIMASI ROTASI TERUS MENERUS
+  Widget _buildDistributionCard(Map data) {
+    double vMobil = (data['mobil'] ?? 0).toDouble();
+    double vMotor = (data['motor'] ?? 0).toDouble();
+    double vBus = (data['bus'] ?? 0).toDouble();
+    double vTruk = (data['truk'] ?? 0).toDouble();
+    double totalCount = vMobil + vMotor + vBus + vTruk;
+    bool hasData = totalCount > 0;
+
+    return Card(
+      color: Theme.of(context).cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Distribusi Kendaraan",
+                    style: TextStyle(
+                        color: Colors.cyanAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: Colors.cyan,
+                      borderRadius: BorderRadius.circular(8)),
+                  child: const Text("REAL TIME",
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                )
+              ],
+            ),
+            const SizedBox(height: 30),
+
+            // Animasi Rotasi Diagram
+            SizedBox(
+              height: 200,
+              child: AnimatedBuilder(
+                  animation: _rotationController,
+                  builder: (context, child) {
+                    return PieChart(
+                      PieChartData(
+                        // Ini yang membuat diagram berputar terus
+                        startDegreeOffset: _rotationController.value * 360,
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 70,
+                        sections: hasData
+                            ? [
+                                PieChartSectionData(
+                                    value: vMobil,
+                                    color: Colors.cyanAccent,
+                                    radius: 25,
+                                    showTitle: false),
+                                PieChartSectionData(
+                                    value: vMotor,
+                                    color: Colors.amber,
+                                    radius: 25,
+                                    showTitle: false),
+                                PieChartSectionData(
+                                    value: vBus,
+                                    color: Colors.greenAccent,
+                                    radius: 25,
+                                    showTitle: false),
+                                PieChartSectionData(
+                                    value: vTruk,
+                                    color: Colors.redAccent,
+                                    radius: 25,
+                                    showTitle: false),
+                              ]
+                            : [
+                                PieChartSectionData(
+                                    value: 1,
+                                    color: Colors.white10,
+                                    radius: 25,
+                                    showTitle: false),
+                              ],
+                      ),
+                    );
+                  }),
+            ),
+
+            const SizedBox(height: 30),
+            _buildLegendItem("Mobil", hasData ? (vMobil / totalCount) * 100 : 0,
+                Colors.cyanAccent),
+            _buildLegendItem("Motor", hasData ? (vMotor / totalCount) * 100 : 0,
+                Colors.amber),
+            _buildLegendItem("Bus", hasData ? (vBus / totalCount) * 100 : 0,
+                Colors.greenAccent),
+            _buildLegendItem("Truk", hasData ? (vTruk / totalCount) * 100 : 0,
+                Colors.redAccent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, double percent, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
         children: [
-          Icon(Icons.videocam_off, color: Colors.white54, size: 50),
-          SizedBox(height: 10),
-          Text(
-            "Stream Offline / URL RTSP",
-            style: TextStyle(color: Colors.white54),
-          ),
+          Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 12),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 14)),
+          const Spacer(),
+          Text("${percent.toStringAsFixed(1)}%",
+              style: const TextStyle(
+                  color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
         ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildInfoItem(String title, String value, {bool isStatus = false}) {
+    Color valColor = Colors.white;
+    if (isStatus) {
+      if (value.contains("Macet"))
+        valColor = Colors.redAccent;
+      else if (value.contains("Padat"))
+        valColor = Colors.orangeAccent;
+      else
+        valColor = Colors.greenAccent;
+    }
+    return Column(
+      crossAxisAlignment:
+          isStatus ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(value,
+            style: TextStyle(
+                color: valColor, fontWeight: FontWeight.bold, fontSize: 16)),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      height: 250,
+      width: double.infinity,
+      decoration: BoxDecoration(
+          color: Colors.black26, borderRadius: BorderRadius.circular(15)),
+      child: const Center(
+          child: Text("Silakan pilih lokasi CCTV",
+              style: TextStyle(color: Colors.white54))),
+    );
+  }
 }
