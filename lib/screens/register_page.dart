@@ -21,6 +21,16 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscureText = true;
   bool _obscureConfirmText = true;
 
+  // Membersihkan memori saat halaman ditutup
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -126,8 +136,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             onPressed: _isLoading ? null : _handleRegister,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2C2C2C),
-                              shadowColor: Colors.transparent,
-                              elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                               side: const BorderSide(color: Colors.grey, width: 0.5),
                             ),
@@ -141,7 +149,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         const Text("OR", style: TextStyle(color: Colors.grey)),
                         const SizedBox(height: 20),
 
-                        // Social Login (Hanya Google)
+                        // Social Login (Google)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -154,7 +162,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         
                         const SizedBox(height: 30),
                         
-                        // Back to Login
+                        // Link ke Login
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -205,7 +213,15 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
+  // --- LOGIKA REGISTER ---
   void _handleRegister() async {
+    // Validasi input kosong
+    if (_usernameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Field tidak boleh kosong'), backgroundColor: Colors.orange));
+      return;
+    }
+
+    // Validasi kecocokan password
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password tidak cocok'), backgroundColor: Colors.red));
       return;
@@ -213,34 +229,50 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
+    
+    // Panggil Service (Return null jika sukses, return String jika error)
     String? error = await authService.registerWithEmailPassword(
-      _usernameController.text,
-      _emailController.text,
-      _passwordController.text,
+      _usernameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
     );
-    setState(() => _isLoading = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error!), backgroundColor: Colors.red));
+      setState(() => _isLoading = false);
+
+      if (error == null) {
+        // JIKA SUKSES
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registrasi Berhasil! Silakan Login.'), backgroundColor: Colors.green)
+        );
+        
+        // Pindah ke halaman Login setelah jeda 1 detik
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) Navigator.pop(context); // Kembali ke halaman Login
+        });
+
+      } else {
+        // JIKA GAGAL
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red)
+        );
+      }
     }
-    }
+  }
 
   void _handleGoogleLogin() async {
     setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
     
-    // Gunakan fungsi login Google yang sama dengan Login Page
     String? error = await authService.signInWithGoogle();
     
-    setState(() => _isLoading = false);
-
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google Sign Up Gagal: $error'), backgroundColor: Colors.red),
-      );
-    } else {
-      // Jika sukses, tutup halaman Register (kembali ke stack sebelumnya -> MainScreen via AuthWrapper)
-      if (mounted) Navigator.pop(context);
+      setState(() => _isLoading = false);
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal: $error'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 }

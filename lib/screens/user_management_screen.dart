@@ -201,16 +201,51 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                      color: const Color(0xFF2C2C2C),
-                      borderRadius: BorderRadius.circular(20)),
+                    color: const Color(0xFF2C2C2C),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Column(
                     children: [
-                      _buildMenuItem(Icons.lock_reset, "Ganti Password",
-                          () => _showChangePasswordDialog(context)),
-                      const Divider(color: Colors.white12, height: 1),
+                      // Menu Ganti Password
                       _buildMenuItem(
-                          Icons.logout, "Logout", () => authService.signOut(),
-                          isDestructive: true),
+                        Icons.lock_reset,
+                        "Ganti Password",
+                        () => _showChangePasswordDialog(context),
+                      ),
+
+                      const Divider(color: Colors.white12, height: 1),
+
+                      // Menu Logout
+                      _buildMenuItem(
+                        Icons.logout,
+                        "Logout",
+                        () async {
+                          final authService =
+                              Provider.of<AuthService>(context, listen: false);
+
+                          // 1. Jalankan proses logout
+                          await authService.signOut();
+
+                          if (context.mounted) {
+                            // 2. Beri notifikasi berhasil keluar
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Berhasil Keluar"),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+
+                            // 3. Navigasi paksa ke halaman login & hapus semua history
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/login',
+                              (route) => false,
+                            );
+                          }
+                        },
+                        isDestructive: true,
+                      ),
                     ],
                   ),
                 ),
@@ -462,93 +497,71 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           title: const Text("Ganti Password",
               style:
                   TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: oldPassController,
-                    obscureText: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                        labelText: "Password Lama",
-                        prefixIcon:
-                            Icon(Icons.lock_outline, color: Colors.grey),
-                        filled: true,
-                        fillColor: Colors.black26),
-                    validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: newPassController,
-                    obscureText: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                        labelText: "Password Baru",
-                        prefixIcon: Icon(Icons.lock, color: Colors.blueAccent),
-                        filled: true,
-                        fillColor: Colors.black26),
-                    validator: (v) =>
-                        v!.length < 6 ? "Minimal 6 karakter" : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: confirmPassController,
-                    obscureText: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                        labelText: "Konfirmasi Password",
-                        prefixIcon: Icon(Icons.lock, color: Colors.blueAccent),
-                        filled: true,
-                        fillColor: Colors.black26),
-                    validator: (v) => v != newPassController.text
-                        ? "Password tidak sama"
-                        : null,
-                  ),
-                ],
-              ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: oldPassController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                      labelText: "Password Lama",
+                      filled: true,
+                      fillColor: Colors.black26),
+                  validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: newPassController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                      labelText: "Password Baru",
+                      filled: true,
+                      fillColor: Colors.black26),
+                  validator: (v) => v!.length < 6 ? "Minimal 6 karakter" : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: confirmPassController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                      labelText: "Konfirmasi Password",
+                      filled: true,
+                      fillColor: Colors.black26),
+                  validator: (v) => v != newPassController.text
+                      ? "Password tidak sama"
+                      : null,
+                ),
+              ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Batal", style: TextStyle(color: Colors.grey)),
-            ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Batal")),
             ElevatedButton(
               onPressed: () async {
-                // Tambahkan async di sini
                 if (formKey.currentState!.validate()) {
-                  // 1. AMBIL AKSES KE AUTHSERVICE
                   final authService =
                       Provider.of<AuthService>(context, listen: false);
-
-                  // 2. PANGGIL FUNGSI CHANGEPASSWORD
                   String? error = await authService.changePassword(
                       oldPassController.text, newPassController.text);
 
                   if (error == null) {
-                    // Jika berhasil (error null)
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text("Password berhasil diubah!"),
-                          backgroundColor: Colors.green),
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Berhasil!"),
+                        backgroundColor: Colors.green));
                   } else {
-                    // Jika password lama salah (error ada isinya)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(error), backgroundColor: Colors.red),
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(error), backgroundColor: Colors.red));
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white),
               child: const Text("Simpan"),
             ),
           ],

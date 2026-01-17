@@ -22,7 +22,7 @@ import 'package:smarttrafficapp/screens/report_screen.dart';
 import 'package:smarttrafficapp/screens/user_management_screen.dart';
 
 // --- TAMBAHKAN IMPORT INI UNTUK MEMPERBAIKI ERROR TANGGAL ---
-import 'package:intl/date_symbol_data_local.dart'; 
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,7 +39,6 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => AuthService()),
         ChangeNotifierProvider(create: (context) => CCTVDataSource()),
-
       ],
       child: const MyApp(),
     ),
@@ -54,21 +53,18 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Traffic Vision',
       debugShowCheckedModeBanner: false,
-      
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
         primaryColor: Colors.blueAccent,
-        scaffoldBackgroundColor: const Color(0xFF1A1A1A), 
-        cardColor: const Color(0xFF2C2C2C), 
-        
+        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+        cardColor: const Color(0xFF2C2C2C),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1A1A1A),
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
         ),
-        
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF2C2C2C),
@@ -78,23 +74,18 @@ class MyApp extends StatelessWidget {
           ),
           hintStyle: TextStyle(color: Colors.grey[600]),
         ),
-
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
           backgroundColor: Colors.blueAccent,
           foregroundColor: Colors.white,
         ),
-
-
         textTheme: const TextTheme(
-          titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          titleLarge:
+              TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           bodyMedium: TextStyle(color: Colors.white70),
-        ), 
-        colorScheme: ColorScheme.dark(
-          primary: Colors.blueAccent, 
-          surface: const Color(0xFF2C2C2C)
         ),
+        colorScheme: ColorScheme.dark(
+            primary: Colors.blueAccent, surface: const Color(0xFF2C2C2C)),
       ),
-
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginPage(),
@@ -104,7 +95,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -122,7 +112,6 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
-
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -156,26 +145,52 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
-    Navigator.pop(context); 
+    Navigator.pop(context);
   }
 
+  // --- TAMBAHKAN FUNGSI INI DI DALAM CLASS _MainScreenState ATAU _DashboardScreenState ---
+
   void _handleLogout() async {
+    // 1. Ambil instance AuthService
     final authService = Provider.of<AuthService>(context, listen: false);
+
+    // 2. Jalankan fungsi signOut (Menghapus data user aktif di memori)
     await authService.signOut();
+
+    // 3. Cek apakah widget masih terpasang di layar (Safety check)
+    if (!mounted) return;
+
+    // 4. Beri feedback visual (SnackBar)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Berhasil Logout"),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    // 5. NAVIGASI PAKSA KE HALAMAN LOGIN
+    // Menggunakan pushNamedAndRemoveUntil agar tumpukan halaman (history) Dashboard dihapus total.
+    // Jadi user tidak bisa menekan tombol 'Back' untuk kembali ke Dashboard.
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login', // Pastikan nama route ini sama dengan yang di main.dart
+      (route) => false,
+    );
   }
 
   ImageProvider _getProfileImage(User? user) {
-
     if (user == null) return const AssetImage('assets/images/profile.jpg');
 
     if (user.webImageBytes != null) {
       return MemoryImage(user.webImageBytes!);
     }
-    
-    if (user.profilePictureUrl.isNotEmpty && user.profilePictureUrl.startsWith('http')) {
+
+    if (user.profilePictureUrl.isNotEmpty &&
+        user.profilePictureUrl.startsWith('http')) {
       return NetworkImage(user.profilePictureUrl);
     }
-    
+
     if (user.profilePictureUrl.startsWith('assets/')) {
       return AssetImage(user.profilePictureUrl);
     }
@@ -184,8 +199,7 @@ class _MainScreenState extends State<MainScreen> {
       if (user.profilePictureUrl.isNotEmpty) {
         return FileImage(File(user.profilePictureUrl));
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     return const AssetImage('assets/images/profile.jpg');
   }
@@ -198,25 +212,28 @@ class _MainScreenState extends State<MainScreen> {
     final String userEmail = user?.email ?? 'admin@smarttraffic.id';
 
     return Scaffold(
-
       drawer: Drawer(
-        backgroundColor: const Color(0xFF1E1E1E), 
+        backgroundColor: const Color(0xFF1E1E1E),
         child: Column(
           children: [
             UserAccountsDrawerHeader(
               decoration: const BoxDecoration(
                 color: Color(0xFF1A1A1A),
                 image: DecorationImage(
-                  image: AssetImage('assets/images/hero.png'), 
+                  image: AssetImage('assets/images/hero.png'),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
+                  colorFilter:
+                      ColorFilter.mode(Colors.black54, BlendMode.darken),
                 ),
               ),
               currentAccountPicture: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.blueAccent, width: 2),
-                  boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.5))],
+                  boxShadow: [
+                    BoxShadow(
+                        blurRadius: 10, color: Colors.black.withOpacity(0.5))
+                  ],
                 ),
                 child: CircleAvatar(
                   radius: 30,
@@ -226,33 +243,37 @@ class _MainScreenState extends State<MainScreen> {
               ),
               accountName: Text(
                 userName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               accountEmail: Text(userEmail),
             ),
-
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   _buildDrawerItem(0, Icons.dashboard_rounded, 'Dashboard'),
                   _buildDrawerItem(1, Icons.videocam_rounded, 'Live CCTV'),
-                  _buildDrawerItem(2, Icons.bar_chart_rounded, 'Statistik & Analitik'),
-                  _buildDrawerItem(3, Icons.camera_alt_rounded, 'Manajemen Kamera'),
-                  _buildDrawerItem(4, Icons.description_rounded, 'Laporan Otomatis'),
+                  _buildDrawerItem(
+                      2, Icons.bar_chart_rounded, 'Statistik & Analitik'),
+                  _buildDrawerItem(
+                      3, Icons.camera_alt_rounded, 'Manajemen Kamera'),
+                  _buildDrawerItem(
+                      4, Icons.description_rounded, 'Laporan Otomatis'),
                   const Divider(color: Colors.white24, thickness: 0.5),
                   _buildDrawerItem(5, Icons.person, 'Profile'), // Ikon Profile
                 ],
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                leading:
+                    const Icon(Icons.logout_rounded, color: Colors.redAccent),
                 title: const Text(
                   'Logout',
-                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.redAccent, fontWeight: FontWeight.bold),
                 ),
                 onTap: _handleLogout,
               ),
@@ -269,11 +290,14 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.blueAccent.withOpacity(0.2) : Colors.transparent,
+        color: isSelected
+            ? Colors.blueAccent.withOpacity(0.2)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
-        leading: Icon(icon, color: isSelected ? Colors.blueAccent : Colors.grey),
+        leading:
+            Icon(icon, color: isSelected ? Colors.blueAccent : Colors.grey),
         title: Text(
           title,
           style: TextStyle(

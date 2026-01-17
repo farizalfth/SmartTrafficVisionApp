@@ -1,14 +1,15 @@
 // lib/services/auth_service.dart
 
-// ignore_for_file: unnecessary_nullable_for_final_variable_declarations
+// ignore_for_file: unnecessary_nullable_for_final_variable_declarations, unused_element
 
 import 'dart:typed_data';
-import 'dart:convert'; // Untuk Base64 encoding gambar
+import 'dart:convert'; // Untuk jsonEncode dan jsonDecode
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 // Model User Lokal
 class User {
@@ -32,6 +33,9 @@ class User {
 }
 
 class AuthService extends ChangeNotifier {
+  // Ganti localhost dengan 10.0.2.2 jika menggunakan emulator Android
+  final String baseUrl = "http://192.168.0.103/smarttraffic_api"; 
+
   final firebase_auth.FirebaseAuth _firebaseAuth =
       firebase_auth.FirebaseAuth.instance;
 
@@ -45,7 +49,7 @@ class AuthService extends ChangeNotifier {
   User? get currentUser => _currentUser;
 
   AuthService() {
-    // Biarkan kosong agar aplikasi selalu mulai dari halaman Login saat pertama dibuka
+    // Aplikasi selalu mulai dari halaman Login saat pertama dibuka
   }
 
   // --- PERSISTENCE (PENYIMPANAN DATA PERMANEN KE HP) ---
@@ -57,13 +61,12 @@ class AuthService extends ChangeNotifier {
     await prefs.setString('user_name', _currentUser!.username);
     await prefs.setString('user_email', _currentUser!.email);
     await prefs.setString('user_pp', _currentUser!.profilePictureUrl);
+    await prefs.setString('user_role', _currentUser!.role);
 
-    // Simpan password secara permanen
     if (_currentUser!.password != null) {
       await prefs.setString('user_password', _currentUser!.password!);
     }
 
-    // Simpan gambar web (Bytes) jika ada
     if (_currentUser!.webImageBytes != null) {
       await prefs.setString(
           'user_web_bytes', base64Encode(_currentUser!.webImageBytes!));
@@ -72,7 +75,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // Dipanggil saat Login berhasil untuk mengambil data yang tersimpan
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final String? name = prefs.getString('user_name');
@@ -83,7 +85,7 @@ class AuthService extends ChangeNotifier {
         username: name,
         email: prefs.getString('user_email') ?? '',
         password: prefs.getString('user_password'),
-        role: 'user',
+        role: prefs.getString('user_role') ?? 'user',
         profilePictureUrl:
             prefs.getString('user_pp') ?? 'assets/images/profile.jpg',
         joinedDate: DateTime.now(),
@@ -109,8 +111,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> removeProfileImage() async {
     if (_currentUser != null) {
-      _currentUser!.profilePictureUrl =
-          'assets/images/users.jpg'; // Gambar Avatar Default
+      _currentUser!.profilePictureUrl = 'assets/images/users.jpg';
       _currentUser!.webImageBytes = null;
       await _saveToPrefs();
       notifyListeners();
@@ -126,7 +127,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // --- FUNGSI GANTI PASSWORD (LOGIKA PERMANEN) ---
   Future<String?> changePassword(String oldPass, String newPass) async {
     final prefs = await SharedPreferences.getInstance();
     String storedPass = prefs.getString('user_password') ?? '';
@@ -144,23 +144,86 @@ class AuthService extends ChangeNotifier {
     return "Terjadi kesalahan";
   }
 
-  // --- AUTH ACTIONS (LOGIN & REGISTER) ---
+  // --- AUTH ACTIONS (INTEGRASI KE PHP ANDA) ---
 
+  // LOGIN DISESUAIKAN DENGAN login.php ANDA
   Future<bool> signIn(String email, String password) async {
-    await Future.delayed(const Duration(seconds: 1));
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/login.php"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
 
-    String? storedEmail = prefs.getString('user_email');
-    String? storedPass = prefs.getString('user_password');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Pengecekan status 'success' sesuai login.php Anda
+        if (data != null && data['status'] == 'success') {
+          final userData = data['user'];
+          
+          _currentUser = User(
+            username: userData['username'],
+            email: userData['email'],
+            password: password,
+            role: userData['role'] ?? 'user',
+            profilePictureUrl: 'assets/images/profile.jpg', // Default awal
+            joinedDate: DateTime.now(), 
+          );
 
-    // Validasi: Harus cocok dengan data yang didaftarkan/disimpan di HP
-    if (email == storedEmail && password == storedPass) {
-      await _loadFromPrefs();
-      notifyListeners();
-      return true;
+          await _saveToPrefs();
+          notifyListeners();
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint("Login Error: $e");
     }
-    return false; // Login gagal
+    return false;
   }
+
+  // REGISTER DISESUAIKAN DENGAN register.php ANDA
+  Future<String?> registerWithEmailPassword(
+      String username, String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/register.php"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        
+        // Pengecekan status 'success' sesuai register.php Anda
+        if (data != null && data['status'] == 'success') {
+          // Backup data ke prefs lokal
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_name', username);
+          await prefs.setString('user_email', email);
+          await prefs.setString('user_password', password);
+          
+          _currentUser = null; 
+          notifyListeners();
+          return null; // Berhasil
+        } else {
+          return data['message'] ?? "Gagal mendaftar";
+        }
+      }
+      return "Gagal terhubung ke server (HTTP ${response.statusCode})";
+    } catch (e) {
+      return "Koneksi Error: Pastikan XAMPP Aktif ($e)";
+    }
+  }
+
+  // --- FIREBASE & GOOGLE (TETAP DIPERTAHANKAN) ---
 
   Future<void> signOut() async {
     if (await _googleSignIn.isSignedIn()) {
@@ -168,50 +231,28 @@ class AuthService extends ChangeNotifier {
       await _firebaseAuth.signOut();
     }
     _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); 
     notifyListeners();
-  }
-
-  // --- FUNGSI REGISTER (DIPERBAIKI) ---
-  Future<String?> registerWithEmailPassword(
-      String username, String email, String password) async {
-    try {
-      await Future.delayed(const Duration(seconds: 2));
-
-      final prefs = await SharedPreferences.getInstance();
-
-      // Simpan data calon user ke memori HP
-      await prefs.setString('user_name', username);
-      await prefs.setString('user_email', email);
-      await prefs.setString('user_password', password);
-      await prefs.setString('user_pp', 'assets/images/profile.jpg');
-
-      // PENTING: Jangan isi _currentUser di sini!
-      // Agar user wajib login manual lewat halaman login.
-      _currentUser = null;
-
-      notifyListeners();
-      return null; // Sukses daftar
-    } catch (e) {
-      return e.toString();
-    }
   }
 
   Future<bool> isLoggedIn() async {
     return _currentUser != null;
   }
 
-  // GOOGLE SIGN IN
   Future<String?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+
       final firebase_auth.AuthCredential credential =
           firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
+
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
       final firebaseUser = userCredential.user;

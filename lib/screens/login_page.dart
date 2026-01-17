@@ -38,7 +38,7 @@ class _LoginPageState extends State<LoginPage> {
                     image: AssetImage('assets/images/hero.png'),
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
-                      Colors.blueAccent, 
+                      Colors.blueAccent,
                       BlendMode.multiply,
                     ),
                   ),
@@ -49,10 +49,17 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 20),
                     const Text(
                       "Smart Traffic App",
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5),
+                      style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.5),
                     ),
                     const SizedBox(height: 10),
-                    Text("Welcome back", style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.8))),
+                    Text("Welcome back",
+                        style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.8))),
                     const SizedBox(height: 50),
                   ],
                 ),
@@ -68,28 +75,44 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
                     color: Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                    borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30)),
                   ),
                   child: Column(
                     children: [
-                      const Text("Login", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                      const Text("Login",
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
                       const SizedBox(height: 30),
 
                       // Input Fields
                       TextField(
                         controller: _emailController,
-                        style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.blueAccent,
+                            fontWeight: FontWeight.bold),
                         decoration: _inputDecor("Email", Icons.email),
                       ),
                       const SizedBox(height: 20),
                       TextField(
                         controller: _passwordController,
                         obscureText: _obscureText,
-                        style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
-                        decoration: _inputDecor("Password", Icons.lock).copyWith(
+                        style: const TextStyle(
+                            color: Colors.blueAccent,
+                            fontWeight: FontWeight.bold),
+                        decoration:
+                            _inputDecor("Password", Icons.lock).copyWith(
                           suffixIcon: IconButton(
-                            icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.blueGrey),
-                            onPressed: () => setState(() => _obscureText = !_obscureText),
+                            icon: Icon(
+                                _obscureText
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: Colors.blueGrey),
+                            onPressed: () =>
+                                setState(() => _obscureText = !_obscureText),
                           ),
                         ),
                       ),
@@ -105,12 +128,21 @@ class _LoginPageState extends State<LoginPage> {
                             backgroundColor: const Color(0xFF2C2C2C),
                             shadowColor: Colors.transparent,
                             elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                            side: const BorderSide(color: Colors.grey, width: 0.5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                            side: const BorderSide(
+                                color: Colors.grey, width: 0.5),
                           ),
                           child: _isLoading
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.blueAccent, strokeWidth: 2))
-                              : const Text("Log In", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.blueAccent, strokeWidth: 2))
+                              : const Text("Log In",
+                                  style: TextStyle(
+                                      color: Colors.blueAccent,
+                                      fontWeight: FontWeight.bold)),
                         ),
                       ),
 
@@ -123,21 +155,27 @@ class _LoginPageState extends State<LoginPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _socialButton(
-                            icon: Icons.g_mobiledata, // Ikon Google (bawaan material)
+                            icon: Icons
+                                .g_mobiledata, // Ikon Google (bawaan material)
                             onTap: _handleGoogleLogin,
                           ),
                         ],
                       ),
-                      
+
                       const Spacer(),
-                      
+
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("Don't have an Account? ", style: TextStyle(color: Colors.grey)),
+                          const Text("Don't have an Account? ",
+                              style: TextStyle(color: Colors.grey)),
                           GestureDetector(
-                            onTap: () => Navigator.pushNamed(context, '/register'),
-                            child: const Text("Create Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            onTap: () =>
+                                Navigator.pushNamed(context, '/register'),
+                            child: const Text("Create Account",
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -162,7 +200,8 @@ class _LoginPageState extends State<LoginPage> {
       floatingLabelStyle: const TextStyle(color: Colors.blueAccent),
       filled: true,
       fillColor: const Color(0xFF2C2C2C),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
@@ -184,13 +223,50 @@ class _LoginPageState extends State<LoginPage> {
 
   // Logic Login Email Biasa
   void _handleLogin() async {
-    setState(() => _isLoading = true);
-    final authService = Provider.of<AuthService>(context, listen: false);
-    bool success = await authService.signIn(_emailController.text, _passwordController.text);
-    setState(() => _isLoading = false);
+    // 1. Validasi input kosong
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Email dan Password wajib diisi!")),
+      );
+      return;
+    }
 
-    if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login Gagal'), backgroundColor: Colors.red));
+    setState(() => _isLoading = true);
+
+    // 2. Panggil fungsi Sign In dari AuthService
+    final authService = Provider.of<AuthService>(context, listen: false);
+    bool success = await authService.signIn(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+
+      if (success) {
+        // --- JIKA LOGIN BERHASIL ---
+
+        // 3. Tampilkan Notifikasi Sukses
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Login Berhasil! Selamat Datang kembali."),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // 4. PINDAH KE DASHBOARD
+        // Pastikan route '/dashboard' sudah ada di main.dart
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        // --- JIKA LOGIN GAGAL ---
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Login Gagal! Email atau Password salah."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -198,10 +274,10 @@ class _LoginPageState extends State<LoginPage> {
   void _handleGoogleLogin() async {
     setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
-    
+
     // Panggil service
     String? error = await authService.signInWithGoogle();
-    
+
     setState(() => _isLoading = false);
 
     // --- 1. LOGIKA SUKSES ---
@@ -217,7 +293,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
       // Return agar AuthWrapper mengambil alih navigasi ke Dashboard
-      return; 
+      return;
     }
 
     // --- 2. LOGIKA GAGAL / DIBATALKAN ---
@@ -226,17 +302,15 @@ class _LoginPageState extends State<LoginPage> {
         // Jika ada pesan error spesifik dari Firebase/Google
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login Gagal: $error'), 
-            backgroundColor: Colors.red
-          ),
+              content: Text('Login Gagal: $error'),
+              backgroundColor: Colors.red),
         );
       } else {
         // Jika error null tapi user juga null (biasanya user menutup popup login / cancel)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Login Dibatalkan'), 
-            backgroundColor: Colors.orange
-          ),
+              content: Text('Login Dibatalkan'),
+              backgroundColor: Colors.orange),
         );
       }
     }
