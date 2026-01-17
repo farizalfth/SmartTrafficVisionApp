@@ -15,28 +15,20 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   // LOGIKA BARU UNTUK GAMBAR (Memory > Network > Asset > File)
   ImageProvider _getImageProvider(User user) {
-    // 1. Cek jika ada gambar dari komputer (Bytes) - Prioritas Web
+    // 1. Jika baru saja ganti di laptop (masih ada di RAM)
     if (user.webImageBytes != null) {
       return MemoryImage(user.webImageBytes!);
     }
 
-    // 2. Cek jika URL Internet (Google Login)
+    // 2. Jika ada URL internet (Hasil tarikan dari MySQL)
+    // Tambahkan Timestamp agar browser tidak menampilkan gambar lama dari cache
     if (user.profilePictureUrl.startsWith('http')) {
-      return NetworkImage(user.profilePictureUrl);
+      return NetworkImage(
+          "${user.profilePictureUrl}?t=${DateTime.now().millisecondsSinceEpoch}");
     }
 
-    // 3. Cek jika Aset Lokal
-    if (user.profilePictureUrl.startsWith('assets/')) {
-      return AssetImage(user.profilePictureUrl);
-    }
-
-    // 4. Fallback terakhir (jika path file lokal di HP)
-    // Di Web ini jarang dipakai, tapi aman disimpan
-    try {
-      return FileImage(File(user.profilePictureUrl));
-    } catch (e) {
-      return const AssetImage('assets/images/profile.jpg');
-    }
+    // 3. Jika tidak ada, gunakan default aset
+    return const AssetImage('assets/images/users.jpg');
   }
 
   String _formatDate(DateTime date) {
@@ -108,10 +100,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               children: [
                 SizedBox(height: height * 0.20),
 
-                // KARTU UTAMA
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   padding: const EdgeInsets.all(20),
+                  width: double.infinity, // Memastikan kontainer selebar layar
                   decoration: BoxDecoration(
                     color: const Color(0xFF2C2C2C),
                     borderRadius: BorderRadius.circular(20),
@@ -123,21 +115,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ],
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.center, // RATA TENGAH
                     children: [
-                      const SizedBox(height: 60), // Space untuk foto profil
+                      const SizedBox(height: 60),
 
-                      Text(user.username,
-                          style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
+                      // PERBAIKAN IMAGE 1: NAMA RATA TENGAH
+                      Text(
+                        user.username,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      ),
                       const SizedBox(height: 5),
-                      Text(user.email,
-                          style:
-                              TextStyle(fontSize: 14, color: Colors.grey[400])),
-                      const SizedBox(height: 10),
+                      Text(
+                        user.email,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                      ),
+                      const SizedBox(height: 15),
 
-                      // Role Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 6),
@@ -155,7 +155,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                       const SizedBox(height: 25),
 
-                      // Tombol Edit Profil
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -167,13 +166,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(30)),
-                            elevation: 5,
                           ),
                           child: const Text("EDIT PROFIL",
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1)),
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
 
@@ -181,7 +176,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       const Divider(color: Colors.white12),
                       const SizedBox(height: 10),
 
-                      // Statistik
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -339,7 +333,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  // --- DIALOG EDIT PROFIL ---
+  // --- DIALOG EDIT PROFIL (DIPERBAIKI AGAR TIDAK OVERFLOW) ---
   Future<void> _showEditProfileDialog(
       BuildContext context, AuthService authService) async {
     final nameController =
@@ -358,73 +352,78 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               backgroundColor: const Color(0xFF1E1E1E),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
-              contentPadding: const EdgeInsets.all(20),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("Edit Profil",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 25),
-
-                  // FOTO PROFIL (BERSIH TANPA LOGO MENEMPEL)
-                  CircleAvatar(
-                      radius: 55,
-                      backgroundColor: Colors.grey[800],
-                      backgroundImage: _getImageProvider(user)),
-
-                  const SizedBox(height: 15),
-
-                  // BARIS TOMBOL AKSI (DI BAWAH FOTO)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+              // PERBAIKAN UTAMA: Bungkus Column dengan SingleChildScrollView
+              content: SizedBox(
+                width: MediaQuery.of(context)
+                    .size
+                    .width, // Lebar menyesuaikan layar
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // Agar tinggi mengikuti isi
                     children: [
-                      // Tombol Ganti Foto
-                      _buildPhotoButton(
-                        icon: Icons.camera_alt,
-                        label: "Ganti",
-                        color: Colors.blueAccent,
-                        onTap: () => auth.pickNewProfileImage(),
+                      const Text("Edit Profil",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 25),
+
+                      // FOTO PROFIL
+                      CircleAvatar(
+                          radius: 55,
+                          backgroundColor: Colors.grey[800],
+                          backgroundImage: _getImageProvider(user)),
+
+                      const SizedBox(height: 15),
+
+                      // BARIS TOMBOL AKSI (GANTI & HAPUS)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildPhotoButton(
+                            icon: Icons.camera_alt,
+                            label: "Ganti",
+                            color: Colors.blueAccent,
+                            onTap: () => auth.pickNewProfileImage(),
+                          ),
+
+                          // Tampilkan tombol hapus jika bukan foto default
+                          if (user.webImageBytes != null ||
+                              !user.profilePictureUrl.contains('users.jpg'))
+                            const SizedBox(width: 20),
+
+                          if (user.webImageBytes != null ||
+                              !user.profilePictureUrl.contains('users.jpg'))
+                            _buildPhotoButton(
+                              icon: Icons.delete_forever,
+                              label: "Hapus",
+                              color: Colors.redAccent,
+                              onTap: () => auth.removeProfileImage(),
+                            ),
+                        ],
                       ),
 
-                      // Jarak antar tombol
-                      if (user.webImageBytes != null ||
-                          !user.profilePictureUrl.contains('default_avatar'))
-                        const SizedBox(width: 20),
+                      const SizedBox(height: 25),
+                      // INPUT NAMA
+                      TextField(
+                          controller: nameController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration:
+                              _inputDecorDialog("Nama Lengkap", Icons.person)),
+                      const SizedBox(height: 15),
+                      // INPUT EMAIL
+                      TextField(
+                          controller: emailController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: _inputDecorDialog("Email", Icons.email)),
 
-                      // Tombol Hapus Foto (Muncul hanya jika foto bukan default)
-                      if (user.webImageBytes != null ||
-                          !user.profilePictureUrl.contains('default_avatar'))
-                        _buildPhotoButton(
-                          icon: Icons.delete_forever,
-                          label: "Hapus",
-                          color: Colors.redAccent,
-                          onTap: () => auth.removeProfileImage(),
-                        ),
+                      // Tambahan sedikit padding bawah agar tidak mepet keyboard
+                      const SizedBox(height: 10),
                     ],
                   ),
-
-                  const SizedBox(height: 25),
-                  TextField(
-                      controller: nameController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                          labelText: "Nama Lengkap",
-                          prefixIcon: Icon(Icons.person, color: Colors.grey),
-                          filled: true,
-                          fillColor: Colors.black26)),
-                  const SizedBox(height: 15),
-                  TextField(
-                      controller: emailController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                          labelText: "Email",
-                          prefixIcon: Icon(Icons.email, color: Colors.grey),
-                          filled: true,
-                          fillColor: Colors.black26)),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -450,6 +449,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           },
         );
       },
+    );
+  }
+
+  // --- HELPER UNTUK STYLE INPUT DIALOG ---
+  InputDecoration _inputDecorDialog(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.grey),
+      prefixIcon: Icon(icon, color: Colors.grey),
+      filled: true,
+      fillColor: Colors.black26,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
     );
   }
 
@@ -480,91 +492,161 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  // --- DIALOG GANTI PASSWORD (UPDATE) ---
+  // --- DIALOG GANTI PASSWORD (DENGAN FITUR LIHAT PASSWORD) ---
   Future<void> _showChangePasswordDialog(BuildContext context) async {
     final oldPassController = TextEditingController();
     final newPassController = TextEditingController();
     final confirmPassController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
+    // Variabel untuk mengontrol status mata (sembunyi/lihat)
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text("Ganti Password",
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: oldPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                      labelText: "Password Lama",
-                      filled: true,
-                      fillColor: Colors.black26),
-                  validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
+        // StatefulBuilder digunakan agar UI di dalam dialog bisa update saat icon mata diklik
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: const Text("Ganti Password",
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                // Tambahkan agar tidak overflow di layar kecil
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // --- PASSWORD LAMA ---
+                      TextFormField(
+                        controller: oldPassController,
+                        obscureText: obscureOld,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Password Lama",
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureOld
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () =>
+                                setStateDialog(() => obscureOld = !obscureOld),
+                          ),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none),
+                        ),
+                        validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // --- PASSWORD BARU ---
+                      TextFormField(
+                        controller: newPassController,
+                        obscureText: obscureNew,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Password Baru",
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureNew
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () =>
+                                setStateDialog(() => obscureNew = !obscureNew),
+                          ),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none),
+                        ),
+                        validator: (v) =>
+                            v!.length < 6 ? "Minimal 6 karakter" : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // --- KONFIRMASI PASSWORD ---
+                      TextFormField(
+                        controller: confirmPassController,
+                        obscureText: obscureConfirm,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Konfirmasi Password",
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureConfirm
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () => setStateDialog(
+                                () => obscureConfirm = !obscureConfirm),
+                          ),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none),
+                        ),
+                        validator: (v) => v != newPassController.text
+                            ? "Password tidak sama"
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: newPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                      labelText: "Password Baru",
-                      filled: true,
-                      fillColor: Colors.black26),
-                  validator: (v) => v!.length < 6 ? "Minimal 6 karakter" : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: confirmPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                      labelText: "Konfirmasi Password",
-                      filled: true,
-                      fillColor: Colors.black26),
-                  validator: (v) => v != newPassController.text
-                      ? "Password tidak sama"
-                      : null,
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Batal",
+                        style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState!.validate()) {
+                      final authService =
+                          Provider.of<AuthService>(context, listen: false);
+                      String? error = await authService.changePassword(
+                          oldPassController.text, newPassController.text);
+
+                      if (error == null) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text("Berhasil mengubah password!"),
+                                backgroundColor: Colors.green));
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(error), backgroundColor: Colors.red));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("Simpan"),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Batal")),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  final authService =
-                      Provider.of<AuthService>(context, listen: false);
-                  String? error = await authService.changePassword(
-                      oldPassController.text, newPassController.text);
-
-                  if (error == null) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text("Berhasil!"),
-                        backgroundColor: Colors.green));
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(error), backgroundColor: Colors.red));
-                  }
-                }
-              },
-              child: const Text("Simpan"),
-            ),
-          ],
+            );
+          },
         );
       },
     );
