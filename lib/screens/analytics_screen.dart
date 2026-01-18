@@ -368,7 +368,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
     );
   }
-  
+
   // --- WIDGET CHART (DATA DARI FIREBASE DAILY_REPORTS) ---
   Widget _buildHistoryChart() {
     return Card(
@@ -426,9 +426,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               showTitles: true,
                               reservedSize: 45, // Ukuran kolom angka kiri
                               getTitlesWidget: (val, meta) {
-                                // 2. HILANGKAN LOGIKA REAL-TIME: Sekarang hanya menampilkan label Grid
-                                if (val == meta.max)
-                                  return const SizedBox(); // Jangan gambar di paling atas agar tidak tumpuk
+                                // Hanya menampilkan label Grid, jangan gambar di paling atas agar tidak tumpuk
+                                if (val == meta.max) {
+                                  return const SizedBox();
+                                }
 
                                 String text = '';
                                 if (val >= 1000) {
@@ -438,13 +439,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 }
 
                                 return SideTitleWidget(
-                                  axisSide: meta.axisSide,
+                                  meta: meta, // PERBAIKAN: meta wajib diisi
                                   space: 10,
                                   child: Text(
                                     text,
                                     style: const TextStyle(
-                                      color: Colors
-                                          .grey, // Semua angka sekarang seragam Abu-abu
+                                      color: Colors.grey,
                                       fontSize: 10,
                                     ),
                                   ),
@@ -458,12 +458,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 if (val.toInt() >= 0 &&
                                     val.toInt() < _dateLabels.length) {
                                   return SideTitleWidget(
-                                    axisSide: meta.axisSide,
+                                    meta: meta, // PERBAIKAN: meta wajib diisi
                                     space: 8,
-                                    child: Text(_dateLabels[val.toInt()],
-                                        style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 10)),
+                                    child: Text(
+                                      _dateLabels[val.toInt()],
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 10),
+                                    ),
                                   );
                                 }
                                 return const SizedBox();

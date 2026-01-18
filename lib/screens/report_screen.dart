@@ -266,7 +266,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget _buildChartContainer() {
     return Container(
       height: 350,
-      // PERBAIKAN: Tambah padding bawah dari 10 menjadi 20 agar label tidak mepet ke bawah
+      // PERBAIKAN: Tambah padding bawah agar label tidak mepet
       padding: const EdgeInsets.fromLTRB(5, 30, 20, 20),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
@@ -292,9 +292,9 @@ class _ReportScreenState extends State<ReportScreen> {
             bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize:
-                        40, // PERBAIKAN: Memberi ruang 40px khusus untuk teks label bawah
-                    getTitlesWidget: _bottomTitles)),
+                    reservedSize: 40,
+                    getTitlesWidget:
+                        _bottomTitles)), // Memanggil fungsi di bawah
             leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                     showTitles: true,
@@ -310,7 +310,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       }
 
                       return SideTitleWidget(
-                        axisSide: meta.axisSide,
+                        meta: meta, // PERBAIKAN: Gunakan meta, hapus axisSide
                         space: 8,
                         child: Text(text,
                             style: const TextStyle(
@@ -391,28 +391,35 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Widget _bottomTitles(double value, TitleMeta meta) {
     const style = TextStyle(
-        color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold);
-    String text;
+      color: Colors.grey,
+      fontWeight: FontWeight.bold,
+      fontSize: 12,
+    );
+
+    Widget text;
     switch (value.toInt()) {
       case 0:
-        text = 'Bus';
+        text = const Text('Bus', style: style);
         break;
       case 1:
-        text = 'Mobil';
+        text = const Text('Mobil', style: style);
         break;
       case 2:
-        text = 'Motor';
+        text = const Text('Motor', style: style);
         break;
       case 3:
-        text = 'Truk';
+        text = const Text('Truk', style: style);
         break;
       default:
-        text = '';
+        text = const Text('', style: style);
+        break;
     }
+
     return SideTitleWidget(
-        axisSide: meta.axisSide,
-        space: 12, // PERBAIKAN: Jarak antara batang dan teks label
-        child: Text(text, style: style));
+      meta: meta, // PERBAIKAN: Gunakan meta, hapus axisSide
+      space: 10,
+      child: text,
+    );
   }
 
   BarChartGroupData _makeGroup(int x, double y, Color color) {

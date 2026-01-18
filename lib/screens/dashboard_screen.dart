@@ -36,6 +36,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final MapController _mapController = MapController();
   final TrafficService _trafficService = TrafficService();
 
+  // --- TAMBAHKAN BARIS INI DI SINI ---
+  int _lastValidGrandTotal = 0;
+
   List<Polyline> _routeLines = [];
   List<Marker> _routeMarkers = [];
   Map<String, Map<String, double>> _cctvCongestionData = {};
@@ -269,7 +272,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             try {
               final rawData = snapshot.data!.snapshot.value;
 
-              // Fungsi internal untuk memproses tiap data CCTV
               void processItem(String key, dynamic value) {
                 if (value is Map) {
                   int cctvTotal = 0;
@@ -278,19 +280,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   String duration = "-";
                   String cctvName = "CCTV $key";
 
-                  // Cari nama asli CCTV dari Provider
                   try {
                     final cctv = cctvList.firstWhere((c) => c.id == key);
                     cctvName = cctv.name;
                   } catch (e) {}
 
-                  // Ambil data dari node 'live'
+                  // --- FIX PERUBAHAN PATH DATA ---
                   if (value.containsKey('live') && value['live'] is Map) {
                     final liveData = value['live'] as Map;
+
+                    // 1. Ambil total akumulasi dari DALAM folder live
                     cctvTotal = int.tryParse(
                             liveData['total_akumulasi_hari_ini']?.toString() ??
                                 '0') ??
                         0;
+
+                    // 2. Ambil data lainnya
                     status = liveData['status']?.toString() ?? 'Lancar';
                     density = int.tryParse(
                             liveData['kepadatan_persen']?.toString() ?? '0') ??
@@ -299,7 +304,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         liveData['session_duration']?.toString() ?? "Aktif";
                   }
 
+                  // Akumulasi total dari CCTV 1 sampai 5
                   grandTotalHariIni += cctvTotal;
+
                   cctvStatsMap[key] = {
                     'density': density,
                     'duration': duration,
@@ -307,24 +314,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'name': cctvName,
                   };
 
-                  // Logika Status Umum & Peringatan
                   if (status.toLowerCase().contains('macet')) {
                     generalStatus = "Macet";
-                    DateTime now = DateTime.now();
-                    String dayStr = DateFormat('EEEE', 'id_ID').format(now);
-                    String dateStr =
-                        DateFormat('dd MMMM yyyy', 'id_ID').format(now);
-                    String timeStr = DateFormat('HH:mm:ss').format(now);
-
-                    _activeWarnings.add(
-                        "Kepadatan Tinggi di $cctvName\n$dayStr, $dateStr | Pukul $timeStr WIB");
+                    _activeWarnings.add("Kepadatan Tinggi di $cctvName");
                   } else if (status.toLowerCase().contains('padat')) {
                     if (generalStatus != "Macet") generalStatus = "Padat";
                   }
                 }
               }
 
-              // Eksekusi pemrosesan data (Handle jika Firebase kirim List atau Map)
               if (rawData is Map) {
                 rawData.forEach(
                     (key, value) => processItem(key.toString(), value));
@@ -333,10 +331,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   if (rawData[i] != null) processItem(i.toString(), rawData[i]);
                 }
               }
+
+              // --- LOGIKA MEMORY: SIMPAN ANGKA TERAKHIR ---
+              // Jika hasil penjumlahan > 0, simpan ke memori cadangan
+              if (grandTotalHariIni > 0) {
+                _lastValidGrandTotal = grandTotalHariIni;
+              }
             } catch (e) {
               debugPrint("Error processing dashboard data: $e");
             }
           }
+
+          // --- LOGIKA FALLBACK ---
+          // Jika data realtime 0 (karena sensor off/error), gunakan angka terakhir yang pernah tercatat
+          int displayTotal = (grandTotalHariIni > 0)
+              ? grandTotalHariIni
+              : _lastValidGrandTotal;
 
           int totalWarnings = _activeWarnings.length;
 
@@ -432,7 +442,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(
                         child: SummaryCard(
                           title: 'Total',
-                          value: numberFormat.format(grandTotalHariIni),
+                          // UBAH BAGIAN INI: gunakan displayTotal yang sudah diformat
+                          value: numberFormat.format(displayTotal),
                           valueColor: Colors.green,
                           icon: Icons.directions_car,
                         ),
@@ -1051,7 +1062,7 @@ class SummaryCard extends StatelessWidget {
       ),
       child: Column(
         // 1. MEMBUAT COLUMN RATA TENGAH
-        crossAxisAlignment: CrossAxisAlignment.center, 
+        crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -1064,14 +1075,15 @@ class SummaryCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             // 2. MEMBUAT ISI ROW (ICON & ANGKA) RATA TENGAH
-            mainAxisAlignment: MainAxisAlignment.center, 
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: valueColor, size: 16),
               const SizedBox(width: 6),
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  alignment: Alignment.center, // Rata tengah saat angka mengecil
+                  alignment:
+                      Alignment.center, // Rata tengah saat angka mengecil
                   child: Text(
                     value,
                     style: TextStyle(

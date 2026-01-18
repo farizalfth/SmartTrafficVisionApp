@@ -13,27 +13,28 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  # --- Firebase & Authentication ---
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  firebase_database: ^11.1.0 
+  # --- Firebase Ecosystem (Versi Selaras/Kompatibel) ---
+  firebase_core: ^3.10.1          # Diupdate ke v3 untuk mendukung storage terbaru
+  firebase_auth: ^5.4.1           # Versi yang selaras dengan Core v3
+  cloud_firestore: ^5.6.1         # Versi yang selaras dengan Core v3
+  firebase_database: ^11.1.10
   firebase_storage: ^12.4.10
-  google_sign_in: ^6.2.1
+  google_sign_in: ^6.2.2
 
   # --- State Management ---
   provider: ^6.1.2
 
   # --- UI & Visuals ---
   cupertino_icons: ^1.0.8
-  font_awesome_flutter: ^10.7.0
-  fl_chart: ^0.69.0
+  font_awesome_flutter: ^10.8.0
+  fl_chart: ^0.70.1               # Update stabil terbaru
   
   # --- Multimedia & Images ---
-  youtube_player_flutter: ^9.0.1
+  youtube_player_flutter: ^9.1.0
   image_picker: ^1.1.2
 
   # --- Maps & Location ---
-  flutter_map: ^7.0.0
+  flutter_map: ^7.0.2
   latlong2: ^0.9.1
   geolocator: ^13.0.1
 
@@ -41,7 +42,7 @@ dependencies:
   intl: ^0.20.2
   http: ^1.2.2
   csv: ^6.0.0 
-  shared_preferences: ^2.3.2
+  shared_preferences: ^2.3.5      # Update stabil terbaru
 
 dev_dependencies:
   flutter_test:
@@ -52,9 +53,11 @@ flutter:
   uses-material-design: true
 
   assets:
+    # --- Images ---
     - assets/images/google_logo.png
     - assets/images/hero.png
     - assets/images/profile.jpg
     - assets/images/users.jpg
+    # --- Data Sources ---
     - assets/datasets/RTA Dataset.csv 
     - assets/datasets/traffic.csv

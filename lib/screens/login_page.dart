@@ -275,42 +275,33 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
 
-    // Panggil service
+    // 1. Jalankan proses Google Login
     String? error = await authService.signInWithGoogle();
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
 
-    // --- 1. LOGIKA SUKSES ---
-    // Cek apakah user berhasil masuk (currentUser tidak null)
-    if (authService.currentUser != null) {
-      if (mounted) {
+      // 2. Cek apakah Sukses (error bernilai null)
+      if (error == null) {
+        // TAMPILKAN NOTIFIKASI SUKSES
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Login Berhasil! Mengalihkan...'),
+            content: Text("Login Berhasil! Mengalihkan..."),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
           ),
         );
-      }
-      // Return agar AuthWrapper mengambil alih navigasi ke Dashboard
-      return;
-    }
 
-    // --- 2. LOGIKA GAGAL / DIBATALKAN ---
-    if (mounted) {
-      if (error != null && error != "null") {
-        // Jika ada pesan error spesifik dari Firebase/Google
+        // --- INI BAGIAN YANG KURANG (WAJIB DITAMBAHKAN) ---
+        // 3. PERINTAH PINDAH KE DASHBOARD
+        Navigator.pushReplacementNamed(context, '/dashboard');
+        // --------------------------------------------------
+      } else if (error != "Batal") {
+        // JIKA GAGAL (DAN BUKAN KARENA USER CANCEL)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Login Gagal: $error'),
-              backgroundColor: Colors.red),
-        );
-      } else {
-        // Jika error null tapi user juga null (biasanya user menutup popup login / cancel)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Login Dibatalkan'),
-              backgroundColor: Colors.orange),
+            content: Text("Login Google Gagal: $error"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
