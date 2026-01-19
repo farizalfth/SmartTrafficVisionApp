@@ -635,7 +635,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Laporan Warga',
+                Text('Ulasan Masyarakat',
                     style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -644,13 +644,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text("Laporkan kondisi lalu lintas terkini di sekitar Anda.",
+            const Text("Laporkan Ulasan Anda  di sini,Ulasan Anda sangat berarti bagi kami untuk meningkatkan layanan.",
                 style: TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 20),
             TextField(
               controller: _nameController,
               decoration: InputDecoration(
-                labelText: 'Nama Pelapor',
+                labelText: 'Nama Anda',
                 prefixIcon: const Icon(Icons.person, color: Colors.blueAccent),
                 filled: true,
                 fillColor: const Color(0xFF1E1E1E),
@@ -664,7 +664,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               controller: _commentController,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: 'Kondisi Lalu Lintas (Komentar)',
+                labelText: '  Tulis Ulasan Anda di Sini...',
                 alignLabelWithHint: true,
                 prefixIcon: const Padding(
                     padding: EdgeInsets.only(bottom: 40),
@@ -688,7 +688,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.send),
-                label: Text(_isSubmitting ? "Mengirim..." : "Kirim Laporan"),
+                label: Text(_isSubmitting ? "Mengirim..." : "Kirim Ulasan"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
                   foregroundColor: Colors.white,

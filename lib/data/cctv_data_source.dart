@@ -38,7 +38,7 @@ class CCTVDataSource extends ChangeNotifier {
       latitude: -6.894621, 
       longitude: 110.636922,
       status: 'Online',
-      rstpUrl: 'https://www.youtube.com/watch?v=zf8RYyF6BoI',
+      rstpUrl: 'https://www.youtube.com/watch?v=aboCZ7gkclk',
     ),
     CCTV(
       id: '4',
