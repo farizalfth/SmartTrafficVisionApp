@@ -644,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text("Laporkan Ulasan Anda  di sini,Ulasan Anda sangat berarti bagi kami untuk meningkatkan layanan.",
+            const Text("Ulasan Anda sangat berarti bagi kami untuk meningkatkan layanan.",
                 style: TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 20),
             TextField(
