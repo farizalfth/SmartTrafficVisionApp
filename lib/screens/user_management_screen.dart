@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smarttrafficapp/services/auth_service.dart';
+import 'package:flutter/foundation.dart'; // Untuk kIsWeb
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -13,21 +14,27 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  // LOGIKA BARU UNTUK GAMBAR (Memory > Network > Asset > File)
+  // LOGIKA PROVIDER GAMBAR YANG DIPERBAIKI (Support Web & Mobile)
+  // Ganti fungsi _getImageProvider Anda dengan ini:
   ImageProvider _getImageProvider(User user) {
-    // 1. Jika baru saja ganti di laptop (masih ada di RAM)
-    if (user.webImageBytes != null) {
+    // 1. Jika di Web dan ada bytes baru
+    if (kIsWeb && user.webImageBytes != null) {
       return MemoryImage(user.webImageBytes!);
     }
 
-    // 2. Jika ada URL internet (Hasil tarikan dari MySQL)
-    // Tambahkan Timestamp agar browser tidak menampilkan gambar lama dari cache
-    if (user.profilePictureUrl.startsWith('http')) {
-      return NetworkImage(
-          "${user.profilePictureUrl}?t=${DateTime.now().millisecondsSinceEpoch}");
+    // 2. Jika di HP dan profilePictureUrl berisi path lokal (saat preview)
+    // Path lokal biasanya diawali dengan /data/ atau /storage/
+    if (!kIsWeb && user.profilePictureUrl.startsWith('/') ||
+        user.profilePictureUrl.contains('cache')) {
+      return FileImage(File(user.profilePictureUrl));
     }
 
-    // 3. Jika tidak ada, gunakan default aset
+    // 3. Jika berisi URL Internet (Hasil dari Firebase)
+    if (user.profilePictureUrl.startsWith('http')) {
+      return NetworkImage(user.profilePictureUrl);
+    }
+
+    // 4. Default aset jika semuanya kosong
     return const AssetImage('assets/images/users.jpg');
   }
 

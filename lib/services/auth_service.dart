@@ -1,6 +1,8 @@
 // lib/services/auth_service.dart
 
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -40,10 +42,42 @@ class AuthService extends ChangeNotifier {
   User? get currentUser => _currentUser;
 
   AuthService() {
-    // Session dicek oleh AuthWrapper di main.dart
+    // Memantau perubahan status login (Auto-load data saat aplikasi dibuka)
+    _auth.authStateChanges().listen((firebaseUser) {
+      if (firebaseUser != null) {
+        _loadUserData(firebaseUser.uid);
+      } else {
+        _currentUser = null;
+        notifyListeners();
+      }
+    });
   }
 
-  // --- 1. REGISTER (EMAIL & PASSWORD) ---
+  // --- HELPER: AMBIL DATA DARI FIRESTORE ---
+  // Ini fungsi kunci agar foto tidak hilang saat login kembali
+  Future<void> _loadUserData(String uid) async {
+    try {
+      DocumentSnapshot snap = await _firestore.collection('users').doc(uid).get();
+      if (snap.exists) {
+        Map<String, dynamic> data = snap.data() as Map<String, dynamic>;
+        _currentUser = User(
+          id: data['uid'] ?? uid,
+          username: data['username'] ?? 'User',
+          email: data['email'] ?? '',
+          role: data['role'] ?? 'user',
+          profilePictureUrl: data['profile_picture'] ?? 'assets/images/users.jpg',
+          joinedDate: data['created_at'] != null
+              ? (data['created_at'] as Timestamp).toDate()
+              : DateTime.now(),
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error loading user data: $e");
+    }
+  }
+
+  // --- 1. REGISTER ---
   Future<String?> registerWithEmailPassword(
       String username, String email, String password) async {
     try {
@@ -76,25 +110,8 @@ class AuthService extends ChangeNotifier {
           .signInWithEmailAndPassword(email: email, password: password);
 
       if (cred.user != null) {
-        DocumentSnapshot snap =
-            await _firestore.collection('users').doc(cred.user!.uid).get();
-        if (snap.exists) {
-          Map<String, dynamic> data = snap.data() as Map<String, dynamic>;
-          _currentUser = User(
-            id: data['uid'],
-            username: data['username'],
-            email: data['email'],
-            password: password,
-            role: data['role'] ?? 'user',
-            profilePictureUrl:
-                data['profile_picture'] ?? 'assets/images/users.jpg',
-            joinedDate: data['created_at'] != null
-                ? (data['created_at'] as Timestamp).toDate()
-                : DateTime.now(),
-          );
-          notifyListeners();
-          return true;
-        }
+        await _loadUserData(cred.user!.uid); // Ambil data lengkap dari Firestore
+        return true;
       }
     } catch (e) {
       debugPrint("Login Error: $e");
@@ -102,62 +119,36 @@ class AuthService extends ChangeNotifier {
     return false;
   }
 
-  // --- 3. GOOGLE SIGN IN (FIXED: TANPA GAGAL SINKRON) ---
+  // --- 3. GOOGLE SIGN IN ---
   Future<String?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return "Batal";
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final firebase_auth.AuthCredential credential =
-          firebase_auth.GoogleAuthProvider.credential(
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final firebase_auth.AuthCredential credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      firebase_auth.UserCredential userCred =
-          await _auth.signInWithCredential(credential);
+      firebase_auth.UserCredential userCred = await _auth.signInWithCredential(credential);
 
-      // Ambil atau buat data di Firestore
-      DocumentSnapshot snap =
-          await _firestore.collection('users').doc(userCred.user!.uid).get();
+      // Cek apakah user sudah ada di Firestore
+      DocumentSnapshot snap = await _firestore.collection('users').doc(userCred.user!.uid).get();
 
-      Map<String, dynamic> userData;
       if (!snap.exists) {
-        userData = {
+        await _firestore.collection('users').doc(userCred.user!.uid).set({
           'uid': userCred.user!.uid,
           'username': userCred.user!.displayName ?? "User Google",
           'email': userCred.user!.email,
           'role': 'user',
-          'profile_picture':
-              userCred.user!.photoURL ?? 'assets/images/users.jpg',
+          'profile_picture': userCred.user!.photoURL ?? 'assets/images/users.jpg',
           'created_at': FieldValue.serverTimestamp(),
-        };
-        await _firestore
-            .collection('users')
-            .doc(userCred.user!.uid)
-            .set(userData);
-      } else {
-        userData = snap.data() as Map<String, dynamic>;
+        });
       }
 
-      // LANGSUNG SET CURRENT USER (Tanpa panggil fungsi signIn email/pass)
-      _currentUser = User(
-        id: userData['uid'],
-        username: userData['username'],
-        email: userData['email'],
-        password: null,
-        role: userData['role'] ?? 'user',
-        profilePictureUrl:
-            userData['profile_picture'] ?? 'assets/images/users.jpg',
-        joinedDate: userData['created_at'] != null
-            ? (userData['created_at'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
-
-      notifyListeners(); // <--- WAJIB ADA: Agar UI tahu user sudah masuk
-      return null; // <--- WAJIB RETURN NULL: Tanda sukses ke UI
+      await _loadUserData(userCred.user!.uid);
+      return null;
     } catch (e) {
       return "Gagal masuk dengan Google: $e";
     }
@@ -168,13 +159,10 @@ class AuthService extends ChangeNotifier {
     try {
       firebase_auth.User? user = _auth.currentUser;
       if (user != null) {
-        firebase_auth.AuthCredential credential =
-            firebase_auth.EmailAuthProvider.credential(
+        firebase_auth.AuthCredential credential = firebase_auth.EmailAuthProvider.credential(
                 email: user.email!, password: oldPass);
         await user.reauthenticateWithCredential(credential);
         await user.updatePassword(newPass);
-        if (_currentUser != null) _currentUser!.password = newPass;
-        notifyListeners();
         return null;
       }
     } catch (e) {
@@ -199,50 +187,73 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // --- 6. GANTI FOTO (UPLOAD KE STORAGE PERMANEN) ---
+  // --- 6. GANTI FOTO (FIXED) ---
   Future<void> pickNewProfileImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 40,
+    );
+
     if (image != null && _currentUser != null) {
       try {
+        // PREVIEW INSTAN
+        if (kIsWeb) {
+          _currentUser!.webImageBytes = await image.readAsBytes();
+        } else {
+          // Gunakan path file lokal untuk preview di HP agar tidak abu-abu
+          _currentUser!.profilePictureUrl = image.path;
+        }
+        notifyListeners();
+
+        // PROSES UPLOAD
         final Uint8List bytes = await image.readAsBytes();
         String fileName = 'profile_${_currentUser!.id}.jpg';
-
-        firebase_storage.Reference ref = firebase_storage
-            .FirebaseStorage.instance
-            .ref()
-            .child('user_profiles')
-            .child(fileName);
+        firebase_storage.Reference ref = firebase_storage.FirebaseStorage.instance
+            .ref().child('user_profiles').child(fileName);
 
         await ref.putData(bytes);
-        String downloadUrl = await ref.getDownloadURL();
+        String rawUrl = await ref.getDownloadURL();
+        
+        // Cache busting agar gambar langsung ganti
+        String finalUrl = "$rawUrl?v=${DateTime.now().millisecondsSinceEpoch}";
 
-        await _firestore
-            .collection('users')
-            .doc(_currentUser!.id)
-            .update({'profile_picture': downloadUrl});
+        // UPDATE FIRESTORE
+        await _firestore.collection('users').doc(_currentUser!.id).update({
+          'profile_picture': finalUrl
+        });
 
-        _currentUser!.webImageBytes = bytes;
-        _currentUser!.profilePictureUrl = downloadUrl;
+        // UPDATE FIREBASE AUTH PROFILE (CADANGAN)
+        await _auth.currentUser?.updatePhotoURL(finalUrl);
+
+        // SYNC STATE
+        _currentUser!.profilePictureUrl = finalUrl;
+        _currentUser!.webImageBytes = null;
         notifyListeners();
+
+        debugPrint("Update Foto Berhasil: $finalUrl");
       } catch (e) {
         debugPrint("Upload Foto Error: $e");
       }
     }
   }
 
+  // --- 7. HAPUS FOTO ---
   Future<void> removeProfileImage() async {
     if (_currentUser != null) {
-      await _firestore
-          .collection('users')
-          .doc(_currentUser!.id)
-          .update({'profile_picture': 'assets/images/users.jpg'});
-      _currentUser!.profilePictureUrl = 'assets/images/users.jpg';
+      const defaultImg = 'assets/images/users.jpg';
+      await _firestore.collection('users').doc(_currentUser!.id).update({
+        'profile_picture': defaultImg
+      });
+      await _auth.currentUser?.updatePhotoURL(null);
+      
+      _currentUser!.profilePictureUrl = defaultImg;
       _currentUser!.webImageBytes = null;
       notifyListeners();
     }
   }
 
+  // --- 8. LOGOUT ---
   Future<void> signOut() async {
     await _auth.signOut();
     await _googleSignIn.signOut();
