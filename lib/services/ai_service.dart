@@ -50,7 +50,7 @@ class AIService {
 
     // --- SAPAAN ---
     else if (text.contains('halo') || text.contains('hai') || text.contains('selamat')) {
-      return "Halo! Saya SmartTraffic Bot (Offline Mode). Silakan tanya seputar data kecelakaan (misal: 'berapa kecelakaan saat hujan?') atau kondisi lalu lintas.";
+      return "Halo! Saya SmartTraffic. Silakan tanya seputar data kecelakaan...";
     }
 
     // --- JIKA TIDAK MENGERTI ---

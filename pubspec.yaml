@@ -48,6 +48,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:     # Pastikan sejajar dengan flutter_test
+    sdk: flutter        # Masuk 2 spasi dari integration_test
   flutter_lints: ^5.0.0
 
 # Tambahkan konfigurasi ini di baris paling bawah (tidak menjorok ke dalam)
