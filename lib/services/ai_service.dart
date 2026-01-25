@@ -1,65 +1,60 @@
-// lib/services/ai_service.dart
-
 import 'package:smarttrafficapp/services/traffic_data_service.dart';
 
 class AIService {
-  // Instance Data Service
   final TrafficDataService _dataService = TrafficDataService();
+  bool _isLoaded = false;
 
-  AIService() {
-    // Load data CSV saat service dibuat
-    _dataService.loadAllData();
+  // Inisialisasi data
+  Future<void> init() async {
+    if (!_isLoaded) {
+      await _dataService.loadAllData();
+      _isLoaded = true;
+    }
   }
 
-  // LOGIKA CHATBOT LOKAL (Tanpa Internet/API)
   Future<String> sendMessage(String message) async {
-    // Simulasi berpikir sejenak
-    await Future.delayed(const Duration(milliseconds: 800));
+    await init(); // Pastikan data sudah dimuat
 
-    // 1. Normalisasi teks (kecilkan huruf biar mudah dideteksi)
-    String text = message.toLowerCase();
+    // Simulasi delay sedikit
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    // 2. Deteksi Kata Kunci (Keyword Matching)
-    
-    // --- TOPIK: HUJAN / CUACA ---
-    if (text.contains('hujan') || text.contains('basah') || text.contains('cuaca')) {
-      int count = _dataService.getAccidentsByWeather('rain'); // Cari kata 'rain' di CSV
-      if (text.contains('aman') || text.contains('bahaya')) {
-        return "Berdasarkan data historis kami, tercatat ada $count kecelakaan yang terjadi saat kondisi hujan. Sebaiknya kurangi kecepatan dan berhati-hati saat jalan basah.";
+    String userQuery = message.toLowerCase().trim();
+
+    // 1. Cari kecocokan langsung (Exact Match atau Contains)
+    for (var item in _dataService.qaData) {
+      if (userQuery.contains(item['question']!) || item['question']!.contains(userQuery)) {
+        return item['answer']!;
       }
-      return "Data mencatat ada $count insiden kecelakaan saat kondisi hujan.";
     }
 
-    // --- TOPIK: TOTAL KECELAKAAN ---
-    else if (text.contains('total') && text.contains('kecelakaan')) {
-      int total = _dataService.getTotalAccidents();
-      return "Total data kecelakaan yang tercatat dalam sistem kami berjumlah $total kasus.";
+    // 2. Jika tidak ketemu, cari berdasarkan keyword (Pencarian Kata Kunci)
+    List<String> keywords = userQuery.split(' ');
+    Map<String, int> scores = {};
+
+    for (var item in _dataService.qaData) {
+      int score = 0;
+      for (var word in keywords) {
+        if (word.length > 3 && item['question']!.contains(word)) {
+          score++;
+        }
+      }
+      if (score > 0) {
+        scores[item['answer']!] = score;
+      }
     }
 
-    // --- TOPIK: FATAL / KEMATIAN ---
-    else if (text.contains('fatal') || text.contains('meninggal') || text.contains('parah')) {
-      int fatal = _dataService.getFatalAccidents();
-      return "Terdapat $fatal kasus kecelakaan yang tergolong fatal (mengakibatkan kematian). Harap patuhi rambu lalu lintas.";
+    if (scores.isNotEmpty) {
+      // Ambil jawaban dengan skor tertinggi (paling banyak kata kunci yang cocok)
+      var sortedEntries = scores.entries.toList()
+        ..sort((e1, e2) => e2.value.compareTo(e1.value));
+      return sortedEntries.first.key;
     }
 
-    // --- TOPIK: MACET / TRAFFIC ---
-    else if (text.contains('macet') || text.contains('padat') || text.contains('lalu lintas')) {
-      String status = _dataService.getTrafficStatus();
-      return "Status Lalu Lintas: $status";
-    }
-
-    // --- SAPAAN ---
-    else if (text.contains('halo') || text.contains('hai') || text.contains('selamat')) {
-      return "Halo! Saya SmartTraffic. Silakan tanya seputar data kecelakaan...";
-    }
-
-    // --- JIKA TIDAK MENGERTI ---
-    else {
-      return "Maaf, saya adalah bot offline yang hanya bisa menjawab pertanyaan seputar data kecelakaan dan lalu lintas. Coba gunakan kata kunci seperti 'hujan', 'total kecelakaan', atau 'macet'.";
-    }
+    // 3. Jika benar-benar tidak ada yang cocok
+    return "Maaf, saya belum memiliki informasi spesifik mengenai hal tersebut dalam database lalu lintas saya. Bisa coba tanyakan hal lain seperti 'arti lampu merah', 'fungsi helm', atau 'nomor darurat'?";
   }
 
   void resetChat() {
-    // Tidak ada sesi yang perlu direset karena ini stateless logic
+    // Tidak perlu reset karena data bersifat statis dari CSV
   }
 }
