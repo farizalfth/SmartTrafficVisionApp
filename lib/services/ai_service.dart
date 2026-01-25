@@ -4,6 +4,10 @@ class AIService {
   final TrafficDataService _dataService = TrafficDataService();
   bool _isLoaded = false;
 
+  // Konfigurasi Hugging Face
+  final String _hfToken = "<HF_TOKEN>";
+  final String _modelUrl = "https://api-inference.huggingface.co/models/google/gemma-1.1-2b-it";
+
   // Inisialisasi data
   Future<void> init() async {
     if (!_isLoaded) {
